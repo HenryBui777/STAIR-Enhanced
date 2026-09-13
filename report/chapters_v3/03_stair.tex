@@ -403,6 +403,7 @@ Sau khi phiên bản STAIR-SRE v1.1 giải tỏa thành công hiện tượng xu
 Nhằm giải quyết dứt điểm 4 nguyên nhân trên, phiên bản STAIR-SRE-ANS v2.1 được tái thiết kế toàn diện dựa trên các trụ cột toán học:
 
 \noindent\textcolor{lightblue}{\textbf{1. Regularized Diagonal Spectral Projector.}}
+
 Bảo tồn tuyệt đối hệ trục tọa độ tần số sau phép biến đổi SVD whitening thông qua toán tử nhân Hadamard với vector trọng số đường chéo $\mathbf{w} \in \mathbb{R}^D$:
 \begin{equation}
 \mathbf{e}_i^{(0)} = \mathbf{e}_i^{\text{svd}} \odot \mathbf{w}, \quad \mathcal{L}_{\text{reg\_w}} = \lambda_w \|\mathbf{w} - \mathbf{1}\|_2^2
@@ -410,6 +411,7 @@ Bảo tồn tuyệt đối hệ trục tọa độ tần số sau phép biến �
 với $\lambda_w = 10^{-4}$ và tốc độ học riêng $\eta_w = 0.1 \times \text{lr}$, đảm bảo ma trận Jacobian luôn là ma trận đường chéo thuần túy, triệt tiêu hoàn toàn toán tử xoay làm xáo trộn phổ.
 
 \noindent\textcolor{lightblue}{\textbf{2. Layer-0 Decoupled Projection Head.}}
+
 Tách rời hoàn toàn nhánh tương phản khỏi không gian sâu $H^{(L)}$, đưa InfoNCE về hoạt động độc lập trên không gian thô Tầng 0 thông qua khối MLP nhẹ một tầng (Linear + LayerNorm + LeakyReLU):
 \begin{equation}
 \mathbf{z}_u = \text{LeakyReLU}(\text{LayerNorm}(\mathbf{W}_p \mathbf{e}_u^{(0)})), \quad \mathbf{z}_i = \text{LeakyReLU}(\text{LayerNorm}(\mathbf{W}_p \mathbf{e}_i^{(0)}))
@@ -417,7 +419,8 @@ Tách rời hoàn toàn nhánh tương phản khỏi không gian sâu $H^{(L)}$,
 Khối chiếu này giải phóng $100\%$ không gian $H^{(L)}$ sau tích chập đồ thị FSC cho mục tiêu xếp hạng BPR thuần túy, loại bỏ hoàn toàn hiện tượng cạnh tranh gradient giữa InfoNCE và BPR.
 
 \noindent\textcolor{lightblue}{\textbf{3. Continuous Spectral Difficulty Decoupling.}}
-Bác bỏ giả định cắt cứng vector tại chiều 32, mô hình phân rã độ khó quang phổ dựa trên hàm suy giảm liên tục $\boldsymbol{\beta}(d)$ ($0 \le d < 64$) của STAIR:
+
+Loại bỏ giả định phân chia ranh giới cứng tại chiều 32, mô hình áp dụng trực tiếp hàm suy giảm phổ $\beta(d)$ trên toàn bộ 64 chiều để chiết xuất thành phần dải tần thấp và dải tần cao. Sự phân rã liên tục này bảo toàn trọn vẹn thông tin cấu trúc quang phổ mịn của kiến trúc gốc:
 \begin{equation}
 \mathbf{z}_{u, \text{low}} = \frac{\mathbf{z}_u \odot \boldsymbol{\beta}}{\|\mathbf{z}_u \odot \boldsymbol{\beta}\|_2}, \quad \mathbf{z}_{u, \text{high}} = \frac{\mathbf{z}_u \odot (\mathbf{1} - \boldsymbol{\beta})}{\|\mathbf{z}_u \odot (\mathbf{1} - \boldsymbol{\beta})\|_2}
 \end{equation}
@@ -427,10 +430,12 @@ Bác bỏ giả định cắt cứng vector tại chiều 32, mô hình phân r�
 với $\alpha_{\text{spec}} = 0.35$, ưu tiên $65\%$ năng lượng cho dải tần số cao giàu ngữ nghĩa đa phương thức đặc trưng.
 
 \noindent\textcolor{lightblue}{\textbf{4. Gated Top-K Hard Negative Selection.}}
-Điểm chọn lọc mẫu âm được tính toán kết hợp giữa độ khó quang phổ và hệ số suy giảm: $\text{Score}(u, k) = \text{Diff}(u, k) \cdot \text{Atten}(u, k)$. Mô hình trích xuất danh sách Top-$k_{hn}$ mẫu có điểm số cao nhất, triệt tiêu hiện tượng các mẫu âm giả chiếm dụng ngân sách mẫu khó.
+
+Điểm chọn lọc mẫu âm được tính bằng tích của độ khó và hệ số suy giảm: $\text{Score}(u, k) = \text{Diff}(u, k) \cdot \text{Atten}(u, k)$. Quá trình này giúp lọc bỏ các false negative trước khi phân bổ vào danh sách Top-$k_{hn}$, đảm bảo ngân sách mẫu khó luôn chứa các ứng viên mang gradient hữu ích. 
 
 \noindent\textcolor{lightblue}{\textbf{5. Thresholded Dynamic False Negative Attenuation (Active Gating).}}
-Khắc phục triệt để lỗi rò rỉ suy giảm trên mẫu âm trực giao bằng cổng ngưỡng tương đồng chủ động $\tau_{\text{sim}} = 0.25$:
+
+Khắc phục lỗi rò rỉ suy giảm trên mẫu âm trực giao bằng cổng ngưỡng tương đồng chủ động $\tau_{\text{sim}} = 0.25$:
 \begin{equation}
 \text{active\_mask}(u, k) = \mathbb{I}(\langle \hat{\mathbf{z}}_u, \hat{\mathbf{z}}_k \rangle > 0.25)
 \end{equation}
@@ -440,6 +445,7 @@ W(u, k) = \sigma\left(\frac{\langle \hat{\mathbf{z}}_u, \hat{\mathbf{z}}_k \rang
 với $\tau = 0.25$. Khi $\langle \hat{\mathbf{z}}_u, \hat{\mathbf{z}}_k \rangle \le 0.25$, $\text{active\_mask} = 0 \implies W = 0 \implies \text{Atten} = 1.00$, khôi phục $100\%$ lực đẩy tối đa cho toàn bộ các mẫu âm thông thường.
 
 \noindent\textcolor{lightblue}{\textbf{6. HANS Cosine Annealing Trajectory.}}
+
 Bộ điều phối HANS vận hành tự thích ứng qua 4 giai đoạn rõ rệt:
 \begin{itemize}[leftmargin=*]
     \item \textit{Khởi động (Warmup, Epoch 1--50):} Duy trì $\gamma_h = 0.05, hn\_ratio = 0.10$ để BPR định hình cấu trúc biểu diễn cộng tác ban đầu.
@@ -453,6 +459,7 @@ Bộ điều phối HANS vận hành tự thích ứng qua 4 giai đoạn rõ r�
 \end{itemize}
 
 \noindent\textcolor{lightblue}{\textbf{7. Full Partition InfoNCE Regularization với Cross-Batch Memory Bank FIFO.}}
+
 Sử dụng hàng đợi tĩnh cập nhật qua chốt chặn huấn luyện ($Q=1024$ cho Baby và $Q=4096$ cho Sports). Mẫu số InfoNCE tính tổng trên toàn bộ $Q$ mẫu âm trong hàng đợi, khôi phục hàm phân phối xác suất đầy đủ:
 \begin{equation}
 \mathcal{L}_{\text{ans}} = -\sum_{u \in \mathcal{B}} \log \frac{\exp(\langle \hat{\mathbf{z}}_u, \hat{\mathbf{z}}_{i^+} \rangle / \tau)}{\exp(\langle \hat{\mathbf{z}}_u, \hat{\mathbf{z}}_{i^+} \rangle / \tau) + \sum_{k \in \mathcal{Q}} \omega_k \exp(\langle \hat{\mathbf{z}}_u, \hat{\mathbf{z}}_k \rangle / \tau)}
@@ -639,4 +646,172 @@ Về hiệu năng tính toán phần cứng, kiến trúc v2.1 thể hiện ưu 
 \endgroup
 
 Việc chuyển nhánh đối chiếu về Tầng 0 loại bỏ toàn bộ chi phí lưu trữ đồ thị tính toán và lan truyền ngược qua các tầng tích chập sâu. Trên tập Amazon Baby, mức chiếm dụng bộ nhớ giảm xuống dưới 1 GB (\textbf{937.2 MB}), rút ngắn thời gian huấn luyện xuống \textbf{23.47 phút} (nhanh hơn v2 $12.0\%$). Trên tập Amazon Sports (~300k cạnh), VRAM duy trì cực thấp ở mức \textbf{1.17 GB}, đảm bảo hệ thống có thể triển khai thực tế trên mọi dòng GPU thương mại phổ thông một cách an toàn tuyệt đối.
+
+\subsection{Kết quả thực nghiệm cải tiến 3: STAIR-NE-NLGCL+ (v3)}
+
+\subsubsection{Động lực kỹ thuật và kiến trúc đề xuất}
+
+Xuyên suốt các giai đoạn nghiên cứu trước đây, hệ thống đã thử nghiệm hai trường phái học tương phản khác biệt trên nền tảng STAIR. Trường phái thứ nhất tập trung vào việc học tương phản trực tiếp trên đồ thị lân cận (cụ thể là đối chiếu giữa biểu diễn cục bộ $H^{(0)}$ và lân cận 1-hop $H^{(1)}$), điển hình là mô hình STAIR-NE-NLGCL (v5). Phương pháp này can thiệp trực tiếp vào đồ thị hành vi, kéo gần người dùng với vùng lân cận của mặt hàng tương tác, qua đó củng cố trực tiếp hàm xếp hạng BPR và đã thiết lập kỷ lục hiệu năng trên các tập dữ liệu lớn. Trường phái thứ hai, với các phiên bản v2 và v2.1 (STAIR-SRE-ANS), khai thác không gian quang phổ thuộc tính ở Tầng~0 thông qua các bộ điều phối mẫu âm phức tạp. Mặc dù giúp tăng độ sắc bén ở Top-10, việc ép phân bố đều trên mặt cầu của không gian thuộc tính đã vô tình làm giãn các liên kết lỏng lẻo ở vùng biên đồ thị hành vi, khiến chỉ số Recall@20 bị co hẹp.
+
+Để giải quyết bài toán này, mô hình STAIR-NE-NLGCL+ (v3) được đề xuất dựa trên triết lý tích hợp chọn lọc, đóng vai trò là bản nâng cấp toàn diện trực tiếp từ mô hình quán quân STAIR-NE-NLGCL (v5) của Giai đoạn~2. Nhóm không kết hợp thô bạo các hàm mất mát (naive stacking) vì giải tích toán học chỉ ra rằng điều này sẽ tạo ra lực kéo ngược chiều, gây hiện tượng triệt tiêu gradient. Thay vào đó, kiến trúc giữ lại khung xương học tương phản đồ thị lân cận ($H^{(0)} \leftrightarrow H^{(1)}$) của phiên bản v5 làm nền tảng và cấy ghép các cơ chế tinh túy nhất từ phiên bản v2.1 vào thẳng bên trong hàm mất mát này.
+
+Kế thừa và phát triển từ kiến trúc v5 (Giai đoạn~2), mô hình STAIR-NE-NLGCL+ (v3) loại bỏ các thành phần trung gian gây cản trở và chốt lại kiến trúc tối ưu với các điểm cốt lõi sau:
+
+\medskip
+\noindent\textcolor{lightblue}{\textbf{1. Học tương phản đồ thị lân cận trực tiếp}}
+
+Mô hình loại bỏ hoàn toàn lớp chiếu MLP (Projection Head). Việc sử dụng lớp chiếu với tốc độ học nhỏ đã vô tình tạo ra hiệu ứng giảm chấn (gradient damping), cản trở tín hiệu tương phản tác động trực diện lên embedding BPR. Thay vào đó, gradient InfoNCE được truyền thẳng vào $H^{(0)}$ và $H^{(1)}$, giải phóng 100\% thông lượng gradient để định hình không gian biểu diễn.
+
+\medskip
+\noindent\textcolor{lightblue}{\textbf{2. True Sign-Preserving Spectral Perturbation ($\vert\boldsymbol{\eta}\vert \ge 0$)}}
+
+Khắc phục lỗi đảo pha tọa độ ở các phiên bản trước, cơ chế bơm nhiễu sử dụng vector Gauss trị tuyệt đối không âm. Công thức $\tilde{\mathbf{h}} = \mathbf{h} + \epsilon \cdot \left( \boldsymbol{\beta} \odot \operatorname{sign}(\mathbf{h}) \odot \frac{\vert\boldsymbol{\eta}\vert}{\Vert\vert\boldsymbol{\eta}\vert\Vert_2 + \delta} \right)$ đảm bảo nhiễu sinh ra luôn cùng dấu với tọa độ gốc trên từng chiều. Điều này bảo toàn tuyệt đối góc phần tư không gian, không làm biến dạng hệ trục SVD.
+
+\medskip
+\noindent\textcolor{lightblue}{\textbf{3. Thresholded MFNA với Cắt lát động}}
+
+Để ngăn ngừa nguy cơ tràn bộ nhớ OOM khi tính toán ma trận tương đồng trên toàn bộ danh mục sản phẩm lớn, hệ thống áp dụng cơ chế cắt lát động. Ma trận tương đồng chỉ được tính toán trong phạm vi $B \times B$ của mini-batch hiện tại. Hơn nữa, việc sử dụng ngưỡng cứng $\mathbb{I}(S_{ik} \le 0.85)$ thay cho ngưỡng động giúp lọc sạch các mẫu âm giả mà không làm mờ gradient của các mẫu âm thực sự trong batch.
+
+\medskip
+\noindent\textcolor{lightblue}{\textbf{4. Linear HANS Scheduler}}
+
+Thay vì sử dụng hàm phạt dạng mũ gây bão hòa nhiệt độ hiệu dụng, mô hình chuyển sang hàm phạt tuyến tính $\psi(s) = 1.0 + \gamma_h \cdot \max(0, s)$ với $\gamma_h = 0.15$. Cơ chế này duy trì nguyên vẹn nhiệt độ $\tau = 0.20$, phân phối đều lực đẩy trên toàn bộ mini-batch mà không làm sụp đổ tính phân bố đều.
+
+\medskip
+\noindent\textcolor{lightblue}{\textbf{5. Trọng số tương phản cố định (Linear Warmup)}}
+
+Thay vì điều chỉnh trọng số $\lambda$ theo hàm suy giảm cosine làm suy yếu lực đẩy chống over-smoothing ở các epoch cuối, phiên bản STAIR-NE-NLGCL+ (v3) áp dụng cơ chế tăng dần tuyến tính từ 0 đến $0.010$ trong 50 epoch đầu tiên để ổn định đồ thị cơ sở, sau đó giữ cố định $\lambda = 0.010$ suốt phần còn lại của quá trình huấn luyện. Việc duy trì áp lực đẩy liên tục này là yếu tố then chốt để bảo vệ các sản phẩm ở dải đuôi dài.
+
+% ==============================================================================
+% SƠ ĐỒ KIẾN TRÚC TIKZ
+% ==============================================================================
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    scale=0.82, 
+    transform shape,
+    inputbox/.style={rectangle, draw=blue!60!black, line width=0.8pt, rounded corners=4pt, minimum height=0.8cm, text width=2.8cm, font=\footnotesize, align=center, fill=blue!6, inner sep=4pt},
+    block/.style={rectangle, draw=blue!60!black, line width=0.8pt, rounded corners=4pt, minimum height=0.9cm, text width=5.6cm, font=\footnotesize, align=center, fill=blue!6, inner sep=4pt},
+    layerbox/.style={rectangle, draw=teal!70!black, line width=0.8pt, rounded corners=4pt, minimum height=0.9cm, text width=5.6cm, font=\footnotesize\bfseries, align=center, fill=teal!8, inner sep=4pt},
+    noisebox/.style={rectangle, draw=red!70!black, dashed, line width=1pt, rounded corners=4pt, minimum height=1.2cm, text width=5.8cm, font=\footnotesize, align=center, fill=red!6, inner sep=4pt},
+    clbox/.style={rectangle, draw=orange!80!black, dashed, line width=1pt, rounded corners=6pt, text width=6.0cm, font=\footnotesize, align=left, fill=orange!8, inner sep=8pt},
+    finalbox/.style={rectangle, draw=blue!85!black, line width=1.2pt, rounded corners=6pt, minimum height=1.1cm, text width=10.4cm, font=\small, align=center, fill=blue!12, inner sep=6pt},
+    arr/.style={-{Stealth[length=3.5mm, width=2.5mm]}, line width=1pt, draw=gray!80!black},
+    dasharr/.style={-{Stealth[length=3.5mm, width=2.5mm]}, line width=1pt, dashed, draw=purple!80!black},
+    subbgleft/.style={draw=blue!30, dashed, fill=blue!2, rounded corners=8pt},
+    subbgright/.style={draw=orange!40, dashed, fill=orange!2, rounded corners=8pt}
+]
+
+    % Vùng nền bên trái
+    \draw[subbgleft] (-7.6, 2.0) rectangle (-0.6, -7.5);
+    \node[font=\small\bfseries\color{blue!70!black}, anchor=north] at (-4.1, 1.8) {FSC GNN Backbone};
+
+    % Vùng nền bên phải
+    \draw[subbgright] (0.6, 2.0) rectangle (7.6, -7.5);
+    \node[font=\small\bfseries\color{orange!80!black}, anchor=north] at (4.1, 1.8) {Module STAIR-NE-NLGCL+ (v3)};
+
+    % Các khối nhánh trái
+    \node[inputbox, anchor=north] (inu) at (-5.8, 0.8) {User ID $E_u$};
+    \node[inputbox, anchor=north] (ini) at (-2.4, 0.8) {Item SVD $E_i$};
+
+    \node[block, anchor=north] (h0) at (-4.1, -0.6) {\textbf{Tầng 0: Ego Embeddings}\\[2pt]$H^{(0)} = [E_u \,;\, E_i]$};
+    \draw[arr] (inu.south) -- ++(0,-0.3) -| ([xshift=-1.5cm]h0.north);
+    \draw[arr] (ini.south) -- ++(0,-0.3) -| ([xshift=1.5cm]h0.north);
+
+    \node[layerbox, anchor=north] (h1) at (-4.1, -2.4) {\textbf{FSC Tầng 1}\\[2pt]$H^{(1)} = \tilde{A} H^{(0)} \odot \beta + H^{(0)}$};
+    \draw[arr] (h0.south) -- (h1.north);
+
+    \node[layerbox, anchor=north] (h2) at (-4.1, -4.2) {\textbf{FSC Tầng 2}\\[2pt]$H^{(2)} = \tilde{A} H^{(1)} \odot \beta + H^{(1)}$};
+    \draw[arr] (h1.south) -- (h2.north);
+
+    \node[block, anchor=north] (fscout) at (-4.1, -6.0) {\textbf{Final Embeddings $H^{(L)}$}\\[2pt]Tối ưu hóa BPR thuần túy};
+    \draw[arr] (h2.south) -- (fscout.north);
+
+    % Các khối nhánh phải
+    \node[noisebox, anchor=north] (noise) at (4.1, -0.6) {\textbf{True Sign-Preserving Noise}\\[2pt]$\tilde{\mathbf{h}} = \mathbf{h} + \epsilon \cdot (\boldsymbol{\beta} \odot \operatorname{sign}(\mathbf{h}) \odot |\boldsymbol{\eta}|)$};
+    \draw[dasharr] (h0.east) -- (noise.west);
+    \draw[dasharr] (h1.east) -- ++(0.4, 0) |- ([yshift=-6pt]noise.west);
+
+    \node[clbox, anchor=north] (anscore) at (4.1, -2.4) {
+        \textbf{\small Neighborhood Contrastive Loss}\\[4pt]
+        \begin{tabular}{@{}p{5.8cm}@{}}
+        \textbf{1. Direct Flow:} Đối chiếu trực tiếp $H^{(0)}$ và $H^{(1)}$\\
+        \textbf{2. Hard MFNA:} Lọc mẫu âm giả $\mathbb{I}(S_{ik} \le 0.85)$\\
+        \textbf{3. Linear HANS:} Phạt mẫu khó tuyến tính\\
+        \textbf{4. Constant Weight:} $\lambda = 0.010$ (Warmup 50 ep)
+        \end{tabular}
+    };
+    \draw[arr] (noise.south) -- (anscore.north);
+
+    % Khối Loss tổng hợp bên dưới
+    \node[finalbox, anchor=north] (totalloss) at (0.0, -8.6) {\textbf{Hàm mục tiêu tối ưu đồng thời toàn hệ thống}\\[4pt]$\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{BPR}}(H^{(L)}) + \lambda_{\text{nlgcl}} \mathcal{L}_{\text{NE-NLGCL+}}$};
+
+    \draw[arr] (fscout.south) -- ++(0, -1.0) -| ([xshift=-4.5cm]totalloss.north);
+    \draw[arr] (anscore.south) -- ++(0, -2.4) -| ([xshift=4.5cm]totalloss.north);
+
+\end{tikzpicture}
+\caption{Kiến trúc tổng thể của STAIR-NE-NLGCL+ (v3) với luồng gradient trực tiếp từ hàm mất mát tương phản vào các tầng đồ thị lân cận.}
+\label{fig:stair_v3_architecture}
+\end{figure}
+
+\subsubsection{Kết quả thực nghiệm chuyên sâu trên ba tập dữ liệu}
+
+Quá trình thực nghiệm được triển khai trên môi trường GPU Kaggle với các cấu hình đã tối ưu hóa. Bảng~\ref{tab:stair_v3_results} tổng hợp kết quả của phiên bản cải tiến STAIR-NE-NLGCL+ (v3) đối chiếu với STAIR Baseline và các mốc đỉnh cao trước đó của Giai đoạn~2 (v5) và Giai đoạn~3 (v2.1).
+
+% ==============================================================================
+% BẢNG DỮ LIỆU THỰC NGHIỆM CHUẨN BOOKTABS / LONGTABLE
+% ==============================================================================
+\begingroup
+\footnotesize
+\setlength{\tabcolsep}{4.5pt}
+\renewcommand{\arraystretch}{1.2}
+\begin{longtable}{%
+>{\raggedright\arraybackslash}p{2.2cm}
+>{\raggedright\arraybackslash}p{2.0cm}
+*{4}{>{\centering\arraybackslash}p{1.7cm}}
+>{\centering\arraybackslash}p{2.0cm}}
+
+\caption{Kết quả thực nghiệm STAIR-NE-NLGCL+ (v3) so với Baseline, SOTA v5 (Giai đoạn~2) và ANS v2.1 trên ba tập dữ liệu.}
+\label{tab:stair_v3_results} \\
+\toprule
+\rowcolor{gray!15}\textbf{Tập dữ liệu} & \textbf{Chỉ số} & \textbf{Baseline} & \textbf{SOTA v5 (GĐ2)} & \textbf{ANS v2.1} & \textbf{v3 (Nâng cấp)} & \textbf{$\Delta$ v3 vs BL} \\
+\midrule
+\endfirsthead
+
+\multicolumn{7}{c}{{\bfseries Bảng \thetable\ (tiếp theo)}} \\
+\toprule
+\rowcolor{gray!15}\textbf{Tập dữ liệu} & \textbf{Chỉ số} & \textbf{Baseline} & \textbf{SOTA v5 (GĐ2)} & \textbf{ANS v2.1} & \textbf{v3 (Nâng cấp)} & \textbf{$\Delta$ v3 vs BL} \\
+\midrule
+\endhead
+
+\midrule
+\multicolumn{7}{r}{\textit{Tiếp tục ở trang sau...}} \\
+\endfoot
+
+\bottomrule
+\endlastfoot
+
+\textbf{Baby} & Recall@10 & \textbf{0.0674} & 0.0669 & 0.0654 & \textbf{0.0674} & $0.00\%$ \\
+(best epoch 260) & Recall@20 & \textbf{0.1042} & 0.1027 & 0.0993 & 0.1024 & $-1.73\%$ \\
+& NDCG@10 & 0.0359 & 0.0362 & 0.0348 & 0.0359 & $0.00\%$ \\
+& NDCG@20 & \textbf{0.0454} & \textbf{0.0454} & 0.0435 & 0.0448 & $-1.32\%$ \\
+\midrule
+\textbf{Sports} & Recall@10 & 0.0743 & 0.0753 & 0.0731 & \textbf{0.0753} & $+1.35\%$ \\
+(best epoch 500) & Recall@20 & 0.1111 & 0.1113 & 0.1091 & \textbf{0.1118} & $+0.63\%$ \\
+& NDCG@10 & 0.0405 & 0.0415 & 0.0401 & 0.0414 & $+2.22\%$ \\
+& NDCG@20 & 0.0500 & 0.0508 & 0.0494 & \textbf{0.0508} & $+1.60\%$ \\
+\midrule
+\textbf{Electronics} & Recall@10 & 0.0442 & 0.0451 & --- & \textbf{0.0457} & $+3.39\%$ \\
+(best epoch 490) & Recall@20 & 0.0665 & 0.0678 & --- & \textbf{0.0680} & $+2.26\%$ \\
+& NDCG@10 & 0.0246 & 0.0252 & --- & \textbf{0.0257} & $+4.47\%$ \\
+& NDCG@20 & 0.0303 & 0.0311 & --- & \textbf{0.0314} & $+3.63\%$ \\
+\end{longtable}
+\endgroup
+
+Trên tập dữ liệu khổng lồ Amazon Electronics (với gần 1.7 triệu tương tác), phiên bản STAIR-NE-NLGCL+ (v3) đã thiết lập kỷ lục SOTA tuyệt đối trên toàn bộ các chỉ số đo lường. Mô hình đạt mức tăng trưởng đột phá với NDCG@10 tăng $+4.47\%$, NDCG@20 tăng $+3.63\%$ và Recall@20 tăng $+2.26\%$ so với baseline. Việc loại bỏ lớp MLP projection head đã phát huy tối đa tác dụng, cho phép dòng gradient tương phản tác động trực diện vào không gian đồ thị để phân tách các mục tiêu ở top đầu danh sách.
+
+Với tập Amazon Sports (đồ thị siêu thưa 99.95\%), STAIR-NE-NLGCL+ (v3) tiếp tục bứt phá để lập kỷ lục mới ở chỉ số Recall@20 (đạt 0.1118, cao hơn mức kỷ lục cũ 0.1113 của bản v5 Giai đoạn~2), đồng thời cân bằng kỷ lục NDCG@20 ở mức 0.0508. Cơ chế duy trì trọng số tương phản tĩnh $\lambda = 0.010$ đóng vai trò cốt lõi giúp đồ thị siêu thưa không bị bão hòa sớm, duy trì lực đẩy để mô hình tiếp tục học và cải thiện liên tục đến tận epoch 500. Trên tập Amazon Baby, mô hình phục hồi hoàn toàn các chỉ số về sát chuẩn baseline, khắc phục dứt điểm sự sụt giảm nghiêm trọng từng ghi nhận ở các phiên bản trước đó của Giai đoạn~3 (như v1 và v2.1).
+
+Về hiệu năng phần cứng, kiến trúc STAIR-NE-NLGCL+ (v3) đạt độ tối ưu cao nhất trong toàn bộ quy trình nghiên cứu. Việc lược bỏ các tham số và lớp xử lý dư thừa giúp mức tiêu thụ VRAM đỉnh giảm 33\% (chỉ còn 1420\,MB trên tập Electronics so với mức 2100\,MB của bản v5 cũ), đồng thời duy trì thời gian huấn luyện tương đương baseline. Sự tinh gọn này khẳng định khả năng mở rộng mạnh mẽ của hệ thống trên các hạ tầng máy học thực tế.
+
 \clearpage
