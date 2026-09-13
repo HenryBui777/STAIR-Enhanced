@@ -3,7 +3,7 @@
 \subsection{Kết quả thực nghiệm cải tiến 1: Stepwise Spectral-Refined Contrastive Learning (STAIR-SRE)}
 \label{sec:stair_sre}
 
-\subsubsection{Động lực kỹ thuật và kiến trúc đề xuất}
+\subsubsection{Động lực và kiến trúc đề xuất}
 
 Trong mô hình STAIR gốc, đặc trưng đa phương thức của sản phẩm được tiền xử lý một lần thông qua phép biến đổi SVD whitening để khử tương quan và sắp xếp phương sai theo thứ tự giảm dần từ chiều 0 đến chiều 63. Nhánh tích chập đồ thị Forward Stepwise Convolution phân bổ trọng số phổ $\beta$ dựa trên đúng thứ tự trục tọa độ này. Tuy nhiên, phép biến đổi SVD tĩnh không thể cập nhật thích ứng theo phản hồi của đồ thị tương tác trong quá trình huấn luyện.
 
@@ -385,22 +385,22 @@ Về mặt tiêu thụ phần cứng, mô hình STAIR-SRE đạt hiệu năng t�
 \subsection{Kết quả thực nghiệm cải tiến 2: Stepwise Spectral-Refined Contrastive Learning with Adaptive Negative Scheduling (STAIR-SRE-ANS)}
 \label{sec:stair_sre_ans}
 
-\subsubsection{Động lực kỹ thuật và nhận diện 4 tử huyệt toán học của phiên bản v2}
+\subsubsection{Động lực kỹ thuật}
 
-Sau khi phiên bản STAIR-SRE v1.1 giải tỏa thành công hiện tượng xung đột gradient ký sinh và phục hồi phần lớn hiệu năng tiệm cận Baseline (chênh lệch $-1.17\%$ trên Sports và $-3.74\%$ trên Baby), nhóm nghiên cứu nhận thấy một rào cản nền tảng ngăn cản mô hình tạo ra bước nhảy vọt: \textbf{Cơ chế lấy mẫu âm đồng nhất ngẫu nhiên trong mini-batch (Uniform In-batch Negative Sampling)}. Trên đồ thị người dùng - sản phẩm có độ thưa cực đại, đại đa số các mẫu âm được chọn ngẫu nhiên là các mẫu âm dễ (Easy Negatives), tạo ra gradient xấp xỉ 0 và khiến hàm mất mát tương phản nhanh chóng cạn kiệt thông tin giám sát.
+Sau khi phiên bản STAIR-SRE v1.1 giải tỏa thành công hiện tượng xung đột gradient ký sinh và phục hồi phần lớn hiệu năng tiệm cận Baseline (chênh lệch $-1.17\%$ trên Sports và $-3.74\%$ trên Baby), nhóm nhận thấy một rào cản nền tảng ngăn cản mô hình tạo ra bước nhảy vọt: \textbf{Cơ chế lấy mẫu âm đồng nhất ngẫu nhiên trong mini-batch (Uniform In-batch Negative Sampling)}. Trên đồ thị người dùng - sản phẩm có độ thưa cực đại, đại đa số các mẫu âm được chọn ngẫu nhiên là các mẫu âm dễ (Easy Negatives), tạo ra gradient xấp xỉ 0 và khiến hàm mất mát tương phản nhanh chóng cạn kiệt thông tin giám sát.
 
-Để khắc phục hạn chế này, phiên bản ban đầu STAIR-SRE-ANS v2 được triển khai dựa trên 5 trụ cột (gồm ma trận chiếu đường chéo có neo giữ L2, phân rã phổ liên tục với $\alpha_{\text{spec}} = 0.50$, chọn lọc Top-$K$ có cổng, suy giảm âm giả MFNA qua hàm sigmoid và bộ điều phối HANS với hàng đợi FIFO kích thước cố định $Q=4096$). Tuy nhiên, quá trình đối soát thực nghiệm chuyên sâu đã bộc lộ bốn tử huyệt toán học và kỹ thuật tinh vi khiến v2 chưa thể bứt phá:
+Để khắc phục hạn chế này, phiên bản ban đầu STAIR-SRE-ANS v2 được triển khai dựa trên 5 trụ cột (gồm ma trận chiếu đường chéo có neo giữ L2, phân rã phổ liên tục với $\alpha_{\text{spec}} = 0.50$, chọn lọc Top-$K$ có cổng, suy giảm âm giả MFNA qua hàm sigmoid và bộ điều phối HANS với hàng đợi FIFO kích thước cố định $Q=4096$). Tuy nhiên, quá trình đối soát thực nghiệm cho thấy còn vài nguyên nhân khiến v2 chưa thể bứt phá:
 
 \begin{itemize}[leftmargin=*]
-    \item \textbf{Mâu thuẫn không gian biểu diễn (Representation Dilemma):} Việc ép hàm InfoNCE trực tiếp lên biểu diễn cuối cùng sau 3 tầng GNN ($H^{(L)}$) gây xung đột mục tiêu sâu sắc: InfoNCE ép toàn bộ vector biểu diễn phân bố đồng đều (Uniformity) trên siêu mặt cầu, trong khi hàm xếp hạng BPR lại nỗ lực co cụm các tương tác người dùng - sản phẩm liên quan theo cấu trúc cộng tác (CF). Hai lực kéo đối nghịch tác động lên cùng một không gian biểu diễn sâu làm loãng các cụm sở thích cục bộ.
+    \item \textbf{Mâu thuẫn không gian biểu diễn:} Việc ép hàm InfoNCE trực tiếp lên biểu diễn cuối cùng sau 3 tầng GNN ($H^{(L)}$) gây xung đột mục tiêu sâu sắc: InfoNCE ép toàn bộ vector biểu diễn phân bố đồng đều trên siêu mặt cầu, trong khi hàm xếp hạng BPR lại nỗ lực co cụm các tương tác người dùng - sản phẩm liên quan theo cấu trúc cộng tác (CF). Hai lực kéo đối nghịch tác động lên cùng một không gian biểu diễn sâu làm loãng các cụm sở thích cục bộ.
     \item \textbf{Triệt tiêu lực đẩy của mẫu âm thật (MFNA Attenuation Leak):} Khi không có nhãn siêu dữ liệu ngoại sinh (\texttt{metadata\_mask = None}), hàm suy giảm âm giả trong v2 áp dụng trực tiếp $W = \sigma(\cos(\mathbf{u}, \mathbf{k}) / \tau)$ với $\tau = 0.20$. Do đó, ngay cả với các mẫu âm trực giao lý tưởng ($\cos \approx 0$, là True Negatives hiển nhiên), hàm sigmoid vẫn trả về $W = \sigma(0) = 0.5$, dẫn đến hệ số suy giảm $\text{Atten} = 1.0 - 0.5 = 0.5$. Hậu quả là $50\%$ lực đẩy đối kháng của các mẫu âm thực sự bị triệt tiêu một cách vô căn cứ.
     \item \textbf{Thiếu cơ chế hạ nhiệt động học (HANS Saturation):} Trọng số phạt mẫu âm khó $\gamma_h$ leo dốc chạm trần $0.35$ tại epoch 90 và bị giữ cố định đến tận epoch 500. Việc duy trì áp lực phạt gay gắt liên tục ở giai đoạn hậu kỳ khiến BPR không thể tự do tinh chỉnh các ranh giới xếp hạng tinh tế, làm chậm trễ điểm hội tụ tối ưu về tận cuối chu kỳ (epoch 470 trên Baby và 480 trên Sports).
     \item \textbf{Cắt xén mẫu số hàm InfoNCE (Partition Truncation):} Mẫu số của hàm InfoNCE trong v2 chỉ tính tổng trên $k_{hn}$ mẫu trong Top-$K$ thay vì toàn bộ hàng đợi $Q$. Việc lược bỏ tổng phân vùng đầy đủ (Full Partition Sum) đã làm biến dạng phân phối xác suất hậu nghiệm của softmax, gây nhiễu loạn gradient đối kháng.
 \end{itemize}
 
-\subsubsection{Kiến trúc hoàn thiện STAIR-SRE-ANS v2.1 (7 trụ cột toán học cốt lõi)}
+\subsubsection{Kiến trúc STAIR-SRE-ANS v2.1}
 
-Nhằm giải quyết dứt điểm 4 tử huyệt trên, phiên bản STAIR-SRE-ANS v2.1 được tái thiết kế toàn diện dựa trên bảy trụ cột toán học vững chắc:
+Nhằm giải quyết dứt điểm 4 nguyên nhân trên, phiên bản STAIR-SRE-ANS v2.1 được tái thiết kế toàn diện dựa trên các trụ cột toán học:
 
 \noindent\textcolor{lightblue}{\textbf{1. Regularized Diagonal Spectral Projector.}}
 Bảo tồn tuyệt đối hệ trục tọa độ tần số sau phép biến đổi SVD whitening thông qua toán tử nhân Hadamard với vector trọng số đường chéo $\mathbf{w} \in \mathbb{R}^D$:
@@ -466,72 +466,53 @@ Hàm mục tiêu tối ưu đồng thời toàn hệ thống được xác đị
 
 \begin{figure}[H]
 \centering
-\begin{tikzpicture}[scale=0.82, transform shape,
-    inputbox/.style={rectangle, draw=blue!60!black, rounded corners=4pt, minimum height=0.8cm, text width=2.8cm, font=\scriptsize, align=center, fill=blue!6, inner sep=4pt},
-    block/.style={rectangle, draw=blue!60!black, rounded corners=4pt, minimum height=0.8cm, text width=5.8cm, font=\scriptsize, align=center, fill=blue!6, inner sep=4pt},
-    layerbox/.style={rectangle, draw=teal!70!black, rounded corners=4pt, minimum height=0.9cm, text width=5.8cm, font=\scriptsize\bfseries, align=center, fill=teal!8, inner sep=4pt},
-    mlpbox/.style={rectangle, draw=purple!70!black, dashed, thick, rounded corners=4pt, minimum height=0.9cm, text width=5.8cm, font=\scriptsize, align=center, fill=purple!6, inner sep=4pt},
-    clbox/.style={rectangle, draw=orange!80!black, dashed, thick, rounded corners=4pt, minimum height=3.2cm, text width=6.8cm, font=\scriptsize, align=center, fill=orange!10, inner sep=5pt},
-    finalbox/.style={rectangle, draw=blue!85!black, thick, rounded corners=5pt, minimum height=1.1cm, text width=10.4cm, font=\scriptsize, align=center, fill=blue!12, inner sep=6pt},
-    arr/.style={-{Stealth[length=2.5mm, width=1.7mm]}, thick, draw=gray!30!black},
-    dasharr/.style={-{Stealth[length=2.5mm, width=1.7mm]}, thick, dashed, draw=purple!80!black},
-    subbgleft/.style={draw=blue!30, dashed, fill=blue!2, rounded corners=8pt},
-    subbgright/.style={draw=orange!40, dashed, fill=orange!2, rounded corners=8pt}
+\begin{tikzpicture}[scale=0.85, transform shape,
+    inputbox/.style={rectangle, draw=blue!60!black, line width=0.8pt, rounded corners=4pt, minimum height=0.8cm, text width=6cm, font=\footnotesize\bfseries, align=center, fill=blue!6, inner sep=6pt},
+    mlpbox/.style={rectangle, draw=purple!70!black, dashed, line width=1pt, rounded corners=4pt, minimum height=1cm, text width=6cm, font=\footnotesize, align=center, fill=purple!6, inner sep=6pt},
+    clbox/.style={rectangle, draw=orange!80!black, dashed, line width=1pt, rounded corners=6pt, text width=6.2cm, font=\footnotesize, align=left, fill=orange!8, inner sep=10pt},
+    membankbox/.style={rectangle, draw=purple!80!black, line width=0.8pt, fill=purple!5, rounded corners=4pt, minimum height=0.8cm, text width=3.8cm, align=center, font=\footnotesize},
+    arr/.style={-{Stealth[length=3.5mm, width=2.5mm]}, line width=1pt, draw=gray!80!black},
+    dasharr/.style={-{Stealth[length=3.5mm, width=2.5mm]}, line width=1pt, dashed, draw=purple!80!black},
+    subbgright/.style={draw=orange!40, dashed, line width=0.8pt, fill=orange!2, rounded corners=12pt}
 ]
 
-% Khung bao quanh: GNN & BPR (Left)
-\draw[subbgleft] (-7.6, 2.0) rectangle (-0.5, -9.0);
-\node[font=\scriptsize\bfseries\color{blue!70!black}, anchor=north] at (-4.0, 1.8) {FSC GNN \& BPR Ranking (Nhánh Chính)};
+% ==========================================
+% 1. VẼ KHUNG NỀN (Mở rộng chiều sâu xuống -10.5 để bao trọn các khối)
+% ==========================================
+\draw[subbgright] (-4.5, 1.8) rectangle (4.5, -10.5);
+\node[font=\small\bfseries\color{orange!80!black}, anchor=north] at (0, 1.5) {Module STAIR-SRE-ANS v2.1 (Nhánh Contrastive Learning)};
 
-% Khung bao quanh: STAIR-SRE-ANS v2.1 (Right)
-\draw[subbgright] (0.2, 2.0) rectangle (7.8, -9.0);
-\node[font=\scriptsize\bfseries\color{orange!80!black}, anchor=north] at (4.0, 1.8) {Module STAIR-SRE-ANS v2.1 (Nhánh CL)};
+% ==========================================
+% 2. VẼ CÁC KHỐI NỘI DUNG (Căn giữa dọc theo trục Y, dãn cách an toàn)
+% ==========================================
+% Input tham chiếu từ nhánh GNN
+\node[inputbox, anchor=north] (h0) at (0, 0.5) {Tầng 0: Ego Embeddings $H^{(0)}$\\[2pt]\normalfont\scriptsize (Trích xuất từ nhánh GNN chính)};
 
-% ===== NHÁNH TRÁI: GNN & BPR =====
-\node[inputbox] (inu) at (-5.8, 0.6) {User ID $E_u$};
-\node[inputbox] (ini) at (-2.2, 0.6) {Item SVD $E_i$};
+% Projection Head
+\node[mlpbox, anchor=north] (projhead) at (0, -1.5) {\textbf{Layer-0 Projection Head}\\[3pt]Linear $\rightarrow$ LayerNorm $\rightarrow$ LeakyReLU};
+\draw[dasharr] (h0.south) -- (projhead.north);
 
-\node[block] (h0) at (-4.0, -1.0) {\textbf{Tầng 0: Ego Embeddings}\\[2pt]$H^{(0)} = [E_u \,;\, E_i \odot \mathbf{w}]$};
-\draw[arr] (inu.south) -- ++(0, -0.3) -| ([xshift=-1.8cm]h0.north);
-\draw[arr] (ini.south) -- ++(0, -0.3) -| ([xshift=1.8cm]h0.north);
-
-\node[layerbox] (h1) at (-4.0, -2.8) {FSC Tầng 1\\[2pt]$H^{(1)} = \tilde{A} H^{(0)} \odot \beta + H^{(0)}$};
-\draw[arr] (h0.south) -- (h1.north);
-
-\node[layerbox] (h2) at (-4.0, -4.6) {FSC Tầng 2\\[2pt]$H^{(2)} = \tilde{A} H^{(1)} \odot \beta + H^{(1)}$};
-\draw[arr] (h1.south) -- (h2.north);
-
-\node[block] (fscout) at (-4.0, -6.6) {\textbf{Final Embeddings $H^{(L)}$}\\[2pt]Tối ưu hóa BPR thuần túy};
-\draw[arr] (h2.south) -- (fscout.north);
-
-% ===== NHÁNH PHẢI: STAIR-SRE-ANS v2.1 =====
-% MLP Projection Head
-\node[mlpbox] (projhead) at (4.0, -1.0) {\textbf{Layer-0 Projection Head}\\[2pt]Linear $\rightarrow$ LayerNorm $\rightarrow$ LeakyReLU};
-\draw[dasharr] (h0.east) -- (projhead.west);
-
-% Khối xử lý ANS v2.1
-\node[clbox] (anscore) at (4.0, -4.5) {\textbf{Stepwise SRE-ANS v2.1 Loss}\\[4pt]
-\normalfont\scriptsize \textbf{1. Continuous Decoupling:} $\hat{z}_{\text{low}}, \hat{z}_{\text{high}}$ qua $\beta(d)$ liên tục\\[2pt]
-\textbf{2. Thresholded Active Gate:} Chỉ giảm đẩy khi $\cos > 0.25$\\[2pt]
-\textbf{3. Gated Top-K Selection:} Điểm = Độ khó $\times$ Suy giảm\\[2pt]
-\textbf{4. Full Partition InfoNCE:} Tính tổng trên toàn bộ $Q$ mẫu\\[2pt]
-\textbf{5. Cosine-Annealed HANS:} Trần $\gamma_h$ hạ nhiệt mượt mà};
-
+% Khối xử lý ANS v2.1 Loss (Cấp đủ không gian cho nội dung dài)
+\node[clbox, anchor=north] (anscore) at (0, -3.5) {
+    \textbf{\small Stepwise SRE-ANS v2.1 Loss}\\[6pt]
+    \renewcommand{\arraystretch}{1.5}
+    \begin{tabular}{@{}p{6.0cm}@{}}
+    \textbf{1. Continuous Decoupling:} Phân rã qua phổ $\beta(d)$\\
+    \textbf{2. Thresholded Active Gate:} Kích hoạt khi $\cos > 0.25$\\
+    \textbf{3. Gated Top-K Selection:} Lọc và chọn mẫu âm giả\\
+    \textbf{4. Full Partition InfoNCE:} Tổng trên toàn bộ $Q$ mẫu\\
+    \textbf{5. Cosine-Annealed HANS:} Hạ nhiệt $\gamma_h$ mượt mà
+    \end{tabular}
+};
 \draw[arr] (projhead.south) -- (anscore.north);
 
-% Khối Memory Bank
-\node[rectangle, draw=purple!80!black, thick, fill=purple!5, rounded corners=3pt, minimum height=1.0cm, text width=2.4cm, font=\scriptsize, align=center] (membank) at (4.0, -7.4) {Memory Bank FIFO\\[2pt]$Q$ samples};
+% Khối Memory Bank (Dời xuống -9.0 để tránh va chạm hoàn toàn)
+\node[membankbox, anchor=north] (membank) at (0, -12.0) {Memory Bank FIFO\\[2pt]$Q$ samples};
 \draw[dasharr] (anscore.south) -- (membank.north);
 
-% ===== KẾT HỢP ĐA NHIỆM =====
-\node[finalbox] (totalloss) at (0.1, -10.2) {\textbf{Hàm mục tiêu tối ưu đồng thời toàn hệ thống}\\[3pt]$\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{BPR}}(H^{(L)}) + \lambda_{\text{ans}} \mathcal{L}_{\text{ans}}(z^{(0)}) + \lambda_w \|\mathbf{w} - \mathbf{1}\|_2^2$};
-
-\draw[arr] (fscout.south) -- ++(0, -1.5) -| ([xshift=-3.9cm]totalloss.north);
-\draw[arr] (membank.south) -- ++(0, -0.8) -| ([xshift=3.9cm]totalloss.north);
-
 \end{tikzpicture}
-\caption{Kiến trúc tổng thể của STAIR-SRE-ANS v2.1. Nhánh đối chiếu được tách rời hoàn toàn về Tầng 0 thông qua khối MLP Projection Head, giải phóng không gian GNN sâu cho mục tiêu xếp hạng BPR.}
-\label{fig:stair_v2_1_architecture}
+\caption{Cấu trúc chi tiết của module học tương phản STAIR-SRE-ANS v2.1 hoạt động độc lập trên không gian Tầng 0.}
+\label{fig:stair_v2_1_cl_only}
 \end{figure}
 
 \subsubsection{Kết quả thực nghiệm chuyên sâu trên Baby và Sports}
@@ -592,7 +573,7 @@ Quá trình thực nghiệm đối chứng các phiên bản v2 và v2.1 đượ
 \end{longtable}
 \endgroup
 
-Số liệu thực nghiệm chứng minh phiên bản v2.1 đã tạo ra bước nhảy vọt rõ rệt về \textbf{độ sắc bén xếp hạng (Ranking Sharpness)} so với v2:
+Số liệu thực nghiệm chứng minh phiên bản v2.1 đã tạo ra bước nhảy vọt rõ rệt về \textbf{độ sắc bén xếp hạng} so với v2:
 \begin{itemize}[leftmargin=*]
     \item Trên \textbf{Amazon Baby}: Recall@10 tăng mạnh $+1.71\%$ (từ $0.0643 \to 0.0654$) và NDCG@10 tăng $+0.87\%$ (từ $0.0345 \to 0.0348$).
     \item Trên \textbf{Amazon Sports}: Recall@10 tăng $+0.55\%$ (từ $0.0727 \to 0.0731$) và NDCG@10 tăng $+0.50\%$ (từ $0.0399 \to 0.0401$), bám rất sát mốc Baseline ($0.0405$).
@@ -602,7 +583,7 @@ Việc giải phóng nhánh GNN tầng sâu kết hợp cổng Active Gating ($\
 \noindent\textbf{Quy luật đánh đổi hình học Alignment vs. Uniformity:}
 Việc Recall@20 duy trì mức cân bằng ổn định (kém Baseline $-1.80\%$ trên Sports và $-4.70\%$ trên Baby) phản ánh định lý hình học cốt lõi của Wang \& Isola: lực phân tán đều (Uniformity) của InfoNCE trên không gian đặc trưng Tầng 0 giúp chống overfitting và phân tách sắc nét các đối tượng ở Top-10, nhưng đồng thời làm giãn nở nhẹ các cụm liên kết lỏng lẻo ở vùng biên phân phối Top-20. Do đó, kiến trúc STAIR-SRE-ANS v2.1 đóng vai trò là giải pháp tối ưu chuyên biệt cho bài toán xếp hạng với độ chính xác cao ở danh sách ngắn.
 
-\subsubsection{Đánh giá HANS và viễn trắc tài nguyên phần cứng}
+\subsubsection{Đánh giá HANS và tài nguyên phần cứng}
 
 Quỹ đạo động lực học của bộ điều phối HANS Cosine Annealing thể hiện khả năng thích ứng cao với quá trình hội tụ:
 \begin{itemize}[leftmargin=*]
@@ -623,7 +604,7 @@ Về hiệu năng tính toán phần cứng, kiến trúc v2.1 thể hiện ưu 
     >{\centering\arraybackslash}p{2.3cm}
     >{\centering\arraybackslash}p{2.3cm}}
 
-    \caption{Hồ sơ viễn trắc tài nguyên phần cứng (System Telemetry) giữa v2 và v2.1 trên GPU Tesla T4.}
+    \caption{Hồ sơ tài nguyên phần cứng giữa v2 và v2.1 trên GPU Tesla T4.}
     \label{tab:stair_v2_telemetry} \\
     \hline
     \rowcolor{gray!15}\textbf{Chỉ số viễn trắc} & \textbf{Baby (v2)} & \textbf{Baby (v2.1)} & \textbf{Sports (v2)} & \textbf{Sports (v2.1)} \\
