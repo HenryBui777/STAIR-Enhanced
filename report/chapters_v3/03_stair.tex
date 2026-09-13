@@ -682,9 +682,6 @@ Thay vì sử dụng hàm phạt dạng mũ gây bão hòa nhiệt độ hiệu 
 
 Thay vì điều chỉnh trọng số $\lambda$ theo hàm suy giảm cosine làm suy yếu lực đẩy chống over-smoothing ở các epoch cuối, phiên bản STAIR-NE-NLGCL+ (v3) áp dụng cơ chế tăng dần tuyến tính từ 0 đến $0.010$ trong 50 epoch đầu tiên để ổn định đồ thị cơ sở, sau đó giữ cố định $\lambda = 0.010$ suốt phần còn lại của quá trình huấn luyện. Việc duy trì áp lực đẩy liên tục này là yếu tố then chốt để bảo vệ các sản phẩm ở dải đuôi dài.
 
-% ==============================================================================
-% SƠ ĐỒ KIẾN TRÚC TIKZ
-% ==============================================================================
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[
@@ -702,12 +699,11 @@ Thay vì điều chỉnh trọng số $\lambda$ theo hàm suy giảm cosine làm
     subbgright/.style={draw=orange!40, dashed, fill=orange!2, rounded corners=8pt}
 ]
 
-    % Vùng nền bên trái
-    \draw[subbgleft] (-7.6, 2.0) rectangle (-0.6, -7.5);
+    % Vùng nền bên trái & phải (kéo dài xuống -8.8 để ôm trọn nội dung)
+    \draw[subbgleft] (-7.6, 2.0) rectangle (-0.6, -8.8);
     \node[font=\small\bfseries\color{blue!70!black}, anchor=north] at (-4.1, 1.8) {FSC GNN Backbone};
 
-    % Vùng nền bên phải
-    \draw[subbgright] (0.6, 2.0) rectangle (7.6, -7.5);
+    \draw[subbgright] (0.6, 2.0) rectangle (7.6, -8.8);
     \node[font=\small\bfseries\color{orange!80!black}, anchor=north] at (4.1, 1.8) {Module STAIR-NE-NLGCL+ (v3)};
 
     % Các khối nhánh trái
@@ -744,10 +740,11 @@ Thay vì điều chỉnh trọng số $\lambda$ theo hàm suy giảm cosine làm
     \draw[arr] (noise.south) -- (anscore.north);
 
     % Khối Loss tổng hợp bên dưới
-    \node[finalbox, anchor=north] (totalloss) at (0.0, -8.6) {\textbf{Hàm mục tiêu tối ưu đồng thời toàn hệ thống}\\[4pt]$\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{BPR}}(H^{(L)}) + \lambda_{\text{nlgcl}} \mathcal{L}_{\text{NE-NLGCL+}}$};
+    \node[finalbox, anchor=north] (totalloss) at (0.0, -9.8) {\textbf{Hàm mục tiêu tối ưu đồng thời toàn hệ thống}\\[4pt]$\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{BPR}}(H^{(L)}) + \lambda_{\text{nlgcl}} \mathcal{L}_{\text{NE-NLGCL+}}$};
 
-    \draw[arr] (fscout.south) -- ++(0, -1.0) -| ([xshift=-4.5cm]totalloss.north);
-    \draw[arr] (anscore.south) -- ++(0, -2.4) -| ([xshift=4.5cm]totalloss.north);
+    % Mũi tên dẫn vào Loss tổng hợp (đi thẳng, bẻ góc vuông cách đỉnh totalloss 0.4cm, không bao giờ xuyên khối)
+    \draw[arr] (fscout.south) |- ([yshift=0.4cm]totalloss.north) -| ([xshift=-3.5cm]totalloss.north);
+    \draw[arr] (anscore.south) |- ([yshift=0.4cm]totalloss.north) -| ([xshift=3.5cm]totalloss.north);
 
 \end{tikzpicture}
 \caption{Kiến trúc tổng thể của STAIR-NE-NLGCL+ (v3) với luồng gradient trực tiếp từ hàm mất mát tương phản vào các tầng đồ thị lân cận.}
@@ -758,9 +755,6 @@ Thay vì điều chỉnh trọng số $\lambda$ theo hàm suy giảm cosine làm
 
 Quá trình thực nghiệm được triển khai trên môi trường GPU Kaggle với các cấu hình đã tối ưu hóa. Bảng~\ref{tab:stair_v3_results} tổng hợp kết quả của phiên bản cải tiến STAIR-NE-NLGCL+ (v3) đối chiếu với STAIR Baseline và các mốc đỉnh cao trước đó của Giai đoạn~2 (v5) và Giai đoạn~3 (v2.1).
 
-% ==============================================================================
-% BẢNG DỮ LIỆU THỰC NGHIỆM CHUẨN BOOKTABS / LONGTABLE
-% ==============================================================================
 \begingroup
 \footnotesize
 \setlength{\tabcolsep}{4.5pt}
@@ -814,4 +808,182 @@ Với tập Amazon Sports (đồ thị siêu thưa 99.95\%), STAIR-NE-NLGCL+ (v3
 
 Về hiệu năng phần cứng, kiến trúc STAIR-NE-NLGCL+ (v3) đạt độ tối ưu cao nhất trong toàn bộ quy trình nghiên cứu. Việc lược bỏ các tham số và lớp xử lý dư thừa giúp mức tiêu thụ VRAM đỉnh giảm 33\% (chỉ còn 1420\,MB trên tập Electronics so với mức 2100\,MB của bản v5 cũ), đồng thời duy trì thời gian huấn luyện tương đương baseline. Sự tinh gọn này khẳng định khả năng mở rộng mạnh mẽ của hệ thống trên các hạ tầng máy học thực tế.
 
+\subsection{Kết quả thực nghiệm cải tiến 4: Structural Behavioral-Modal Denoising \& Safe Spectral Boost (STAIR-SBN-BSC v4.1-SSB)}
+
+\subsubsection{Động lực kỹ thuật và kiến trúc đề xuất}
+
+Sau các đợt thực nghiệm với họ học tương phản (NLGCL và SRE), quá trình nghiên cứu đã chỉ ra sự bão hòa của các hàm mục tiêu phụ thuộc tính chất phân bố đều. Mặc dù giúp cải thiện độ sắc bén ở Top-10, lực đẩy InfoNCE vô tình làm giãn các liên kết cộng tác ở vùng biên, khiến chỉ số Recall@20 khó bứt phá mạnh mẽ. Nhận thức được giới hạn này, hướng tiếp cận chuyển dịch sang việc tối ưu hóa giải thuật nội tại của STAIR: bộ làm mịn Backward Stepwise Convolution (BSC).
+
+Trong STAIR nguyên bản, ma trận kNN tĩnh được khởi tạo từ đặc trưng thô, chứa nhiều nhiễu phương thức và thiếu hụt trầm trọng tín hiệu hành vi đồng mua. Sự nhiễu loạn này làm sai lệch hướng lan truyền gradient của hàm BPR. Để giải quyết, phiên bản STAIR-SBN-BSC v4 ban đầu áp dụng cơ chế lọc nhiễu tự thích ứng. Tuy nhiên, việc cắt tỉa quá mức (xóa hơn 70\% số cạnh) đã làm gãy vụn khung xương truyền tin của toán tử BSC, khiến bậc đỉnh trung bình giảm xuống dưới 2.0 và gây hiện tượng structural starvation. Hậu quả là mô hình rơi vào quá khớp cực đoan, làm sụt giảm thứ hạng từ 18\% đến 24\%.
+
+Nhằm khắc phục triệt để lỗ hổng này, phiên bản nâng cấp STAIR-SBN-BSC v4.1-SSB (Safe Spectral Boost) được thiết kế dựa trên nguyên lý "Ít can thiệp nhất có thể". Thay vì cắt tỉa, kiến trúc bảo tồn 100\% tô-pô đồ thị gốc và chỉ áp dụng tăng cường trọng số an toàn (Safe Weight Boosting) dựa trên sự đồng thuận giữa tín hiệu đa phương thức và hành vi đồng mua. Mô hình được xây dựng với các trụ cột toán học sau:
+
+\medskip
+\noindent\textcolor{lightblue}{\textbf{1. Độ tin cậy đa phương thức có ngưỡng (Thresholded Geometric Mean)}}
+
+Liên kết đa phương thức được đánh giá dựa trên sự đồng thuận của cả văn bản và hình ảnh. Độ tương đồng được chuẩn hóa $L_2$ và cắt ngưỡng ($\tau_t = 0.10, \tau_v = 0.10$), sau đó tính trung bình nhân:
+\begin{equation}
+q_{ij}^{\text{modal}} = \sqrt{ \max\left(0.0, \, s_{ij}^{(t)} - \tau_t\right) \cdot \max\left(0.0, \, s_{ij}^{(v)} - \tau_v\right) + \epsilon_{\text{num}} }
+\end{equation}
+Cơ chế này triệt tiêu các liên kết rác do phông nền giả tạo, đảm bảo cạnh chỉ được thưởng điểm khi cả hai phương thức đều vượt ngưỡng tin cậy.
+
+\medskip
+\noindent\textcolor{lightblue}{\textbf{2. Độ tin cậy đồng mua hành vi chuẩn hóa Ochiai (Ochiai Normalized Confidence)}}
+
+Tín hiệu cộng tác khách quan được trích xuất từ ma trận đồng mua $\mathbf{C} = \mathbf{R}^T \mathbf{R}$ và chuẩn hóa theo phân phối Ochiai để tránh thiên lệch (popularity bias) đối với các sản phẩm phổ biến:
+\begin{equation}
+q_{ij}^{\text{behavior}} = \frac{C_{ij}}{\sqrt{D_i \cdot D_j} + \epsilon_{\text{deg}}}
+\end{equation}
+với $D_i$ là bậc tương tác của sản phẩm $i$.
+
+\medskip
+\noindent\textcolor{lightblue}{\textbf{3. Trọng số tăng cường an toàn (Safe Additive Weight Boosting)}}
+
+Hệ thống kết hợp tín hiệu hành vi và đa phương thức theo cơ chế thưởng gia số (additive reward):
+\begin{equation}
+w_{ij} = w_{ij}^{\text{base}} + \alpha \cdot q_{ij}^{\text{modal}} + \beta \cdot q_{ij}^{\text{behavior}}
+\end{equation}
+với $w_{ij}^{\text{base}} = 1.0$, $\alpha = 0.50$ và $\beta = 0.30$. Trọng số luôn nằm trong dải kiểm soát an toàn $[1.0, 1.8]$, bảo vệ tuyệt đối các sản phẩm ở dải đuôi dài (long-tail items) không bị phạt khi thiếu dữ liệu đồng mua, đồng thời ưu tiên truyền dẫn gradient qua các liên kết chất lượng cao.
+
+\medskip
+\noindent\textcolor{lightblue}{\textbf{4. Đối xứng hóa và chuẩn hóa Symmetric Laplacian}}
+
+Ma trận trọng số được đối xứng hóa $\mathbf{W}_{\text{sym}} = \max(\mathbf{W}, \mathbf{W}^T)$ trước khi chuẩn hóa Laplacian:
+\begin{equation}
+\tilde{S}_{\text{SSB}} = \mathbf{D}_W^{-1/2} \mathbf{W}_{\text{sym}} \mathbf{D}_W^{-1/2}
+\end{equation}
+Quá trình này đảm bảo ma trận làm mịn luôn đối xứng nửa xác định dương, bảo toàn đặc tính toán học của bộ tối ưu AdamWSEvo.
+
+% ==============================================================================
+% SƠ ĐỒ KIẾN TRÚC TIKZ (ĐÃ FIX ROUTING VÀ ÔM TRỌN KHUNG NỀN)
+% ==============================================================================
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    scale=0.82, 
+    transform shape,
+    inputbox/.style={rectangle, draw=blue!60!black, line width=0.8pt, rounded corners=4pt, minimum height=0.8cm, text width=2.6cm, font=\footnotesize, align=center, fill=blue!6, inner sep=4pt},
+    block/.style={rectangle, draw=blue!60!black, line width=0.8pt, rounded corners=4pt, minimum height=0.9cm, text width=5.6cm, font=\footnotesize, align=center, fill=blue!6, inner sep=4pt},
+    layerbox/.style={rectangle, draw=teal!70!black, line width=0.8pt, rounded corners=4pt, minimum height=0.9cm, text width=5.6cm, font=\footnotesize\bfseries, align=center, fill=teal!8, inner sep=4pt},
+    noisebox/.style={rectangle, draw=red!70!black, dashed, line width=1pt, rounded corners=4pt, minimum height=1.2cm, text width=5.8cm, font=\footnotesize, align=center, fill=red!6, inner sep=4pt},
+    clbox/.style={rectangle, draw=orange!80!black, dashed, line width=1pt, rounded corners=6pt, text width=6.0cm, font=\footnotesize, align=left, fill=orange!8, inner sep=8pt},
+    finalbox/.style={rectangle, draw=blue!85!black, line width=1.2pt, rounded corners=6pt, minimum height=1.1cm, text width=10.4cm, font=\small, align=center, fill=blue!12, inner sep=6pt},
+    arr/.style={-{Stealth[length=3.5mm, width=2.5mm]}, line width=1pt, draw=gray!80!black},
+    dasharr/.style={-{Stealth[length=3.5mm, width=2.5mm]}, line width=1pt, dashed, draw=purple!80!black},
+    subbgleft/.style={draw=blue!30, dashed, fill=blue!2, rounded corners=8pt},
+    subbgright/.style={draw=orange!40, dashed, fill=orange!2, rounded corners=8pt}
+]
+
+    % Vùng nền bên trái & phải (độ cao mở rộng chuẩn xác để chứa trọn vẹn khối bên trong)
+    \draw[subbgleft] (-7.6, 2.0) rectangle (-0.6, -8.6);
+    \node[font=\small\bfseries\color{blue!70!black}, anchor=north] at (-4.1, 1.8) {FSC GNN Backbone};
+
+    \draw[subbgright] (0.6, 2.0) rectangle (7.6, -8.6);
+    \node[font=\small\bfseries\color{orange!80!black}, anchor=north] at (4.1, 1.8) {Module STAIR-SBN-BSC v4.1-SSB};
+
+    % Nhánh trái: FSC GNN Backbone
+    \node[inputbox, anchor=north] (inu) at (-5.8, 0.8) {User ID $E_u$};
+    \node[inputbox, anchor=north] (ini) at (-2.4, 0.8) {Item SVD $E_i$};
+
+    \node[block, anchor=north] (h0) at (-4.1, -0.6) {\textbf{Tầng 0: Ego Embeddings}\\[2pt]$H^{(0)} = [E_u \,;\, E_i]$};
+    \draw[arr] (inu.south) -- ++(0,-0.3) -| ([xshift=-1.5cm]h0.north);
+    \draw[arr] (ini.south) -- ++(0,-0.3) -| ([xshift=1.5cm]h0.north);
+
+    \node[layerbox, anchor=north] (h1) at (-4.1, -2.4) {\textbf{FSC Tầng 1}\\[2pt]$H^{(1)} = \tilde{A} H^{(0)} \odot \beta + H^{(0)}$};
+    \draw[arr] (h0.south) -- (h1.north);
+
+    \node[layerbox, anchor=north] (h2) at (-4.1, -4.2) {\textbf{FSC Tầng 2}\\[2pt]$H^{(2)} = \tilde{A} H^{(1)} \odot \beta + H^{(1)}$};
+    \draw[arr] (h1.south) -- (h2.north);
+
+    \node[block, anchor=north] (fscout) at (-4.1, -6.0) {\textbf{Final Embeddings $H^{(L)}$}\\[2pt]Tối ưu hóa BPR thuần túy};
+    \draw[arr] (h2.south) -- (fscout.north);
+
+    % Nhánh phải: Safe Spectral Boost
+    \node[noisebox, anchor=north] (noise) at (4.1, -0.6) {
+        \textbf{Offline Precomputed Graph Denoising}\\[3pt]
+        $q_{\text{modal}}$: Thresholded GeoMean\\
+        $q_{\text{behavior}}$: Ochiai Co-occurrence
+    };
+    \draw[dasharr] (h0.east) -- (noise.west);
+
+    \node[clbox, anchor=north] (anscore) at (4.1, -2.4) {
+        \textbf{\small Safe Spectral Boost (SSB)}\\[4pt]
+        \begin{tabular}{@{}p{5.8cm}@{}}
+        \textbf{1. Additive Reward:} $w = 1.0 + \alpha q_{\text{modal}} + \beta q_{\text{beh}}$\\
+        \textbf{2. Bounded Scaling:} $w_{ij} \in [1.0, 1.8]$\\
+        \textbf{3. Topology Preserved:} 0\% cắt tỉa (Pruning)\\
+        \textbf{4. Symmetric Laplacian:} $\mathbf{D}^{-1/2} \mathbf{W}_{\text{sym}} \mathbf{D}^{-1/2}$
+        \end{tabular}
+    };
+    \draw[arr] (noise.south) -- (anscore.north);
+
+    % Khối dưới cùng: Smoother
+    \node[finalbox, anchor=north] (totalloss) at (0.0, -9.6) {
+        \textbf{Backward Stepwise Convolution Smoother}\\[4pt]
+        $\mathbf{g}_{\text{smoothed}} = \operatorname{Smoother}(\mathbf{g}_{\text{BPR}}, \tilde{S}_{\text{SSB}})$
+    };
+
+    % Đường dẫn mũi tên vuông góc, đối xứng chuẩn xác, không đâm xuyên
+    \draw[arr] (fscout.south) |- ([yshift=0.4cm]totalloss.north) -| ([xshift=-3.5cm]totalloss.north);
+    \draw[arr] (anscore.south) |- ([yshift=0.4cm]totalloss.north) -| ([xshift=3.5cm]totalloss.north);
+
+\end{tikzpicture}
+\caption{Kiến trúc tổng thể của STAIR-SBN-BSC v4.1-SSB. Ma trận kề được tiền xử lý ngoại tuyến và tăng cường trọng số an toàn để làm mịn gradient trong quá trình lan truyền ngược.}
+\label{fig:stair_v4_1_ssb_architecture}
+\end{figure}
+
+\subsubsection{Kết quả thực nghiệm chuyên sâu trên Baby và Sports}
+
+Quá trình thực nghiệm được triển khai đồng bộ trên nền tảng GPU Kaggle. Bảng~\ref{tab:stair_ssb_results} so sánh trực tiếp hiệu năng của phiên bản v4.1-SSB với Baseline, SOTA Giai đoạn~2 (v5) và phiên bản v4 bị lỗi.
+
+% ==============================================================================
+% BẢNG THỰC NGHIỆM CHUẨN LONGTABLE / BOOKTABS
+% ==============================================================================
+\begingroup
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.2}
+\begin{longtable}{%
+>{\raggedright\arraybackslash}p{2.0cm}
+>{\raggedright\arraybackslash}p{1.8cm}
+*{4}{>{\centering\arraybackslash}p{1.7cm}}
+>{\centering\arraybackslash}p{2.0cm}}
+
+\caption{Kết quả thực nghiệm STAIR-SBN-BSC v4 và v4.1-SSB so với Baseline trên Baby và Sports.}
+\label{tab:stair_ssb_results} \\
+\toprule
+\rowcolor{gray!15}\textbf{Tập dữ liệu} & \textbf{Chỉ số} & \textbf{Baseline} & \textbf{SOTA v5} & \textbf{v4} & \textbf{v4.1-SSB} & \textbf{$\Delta$ v4.1 vs BL} \\
+\midrule
+\endfirsthead
+
+\multicolumn{7}{c}{{\bfseries Bảng \thetable\ (tiếp theo)}} \\
+\toprule
+\rowcolor{gray!15}\textbf{Tập dữ liệu} & \textbf{Chỉ số} & \textbf{Baseline} & \textbf{SOTA v5} & \textbf{v4} & \textbf{v4.1-SSB} & \textbf{$\Delta$ v4.1 vs BL} \\
+\midrule
+\endhead
+
+\midrule
+\multicolumn{7}{r}{\textit{Tiếp tục ở trang sau...}} \\
+\endfoot
+
+\bottomrule
+\endlastfoot
+
+\textbf{Baby} & Recall@10 & \textbf{0.0674} & 0.0669 & 0.0546 & 0.0620 & $-8.01\%$ \\
+(best test ep 500) & Recall@20 & \textbf{0.1042} & 0.1027 & 0.0842 & 0.0955 & $-8.35\%$ \\
+& NDCG@10   & 0.0359 & \textbf{0.0362} & 0.0291 & 0.0333 & $-7.24\%$ \\
+& NDCG@20   & \textbf{0.0454} & \textbf{0.0454} & 0.0367 & 0.0419 & $-7.71\%$ \\
+\midrule
+\textbf{Sports} & Recall@10 & 0.0743 & \textbf{0.0753} & 0.0681 & 0.0744 & $+0.13\%$ \\
+(best epoch 500) & Recall@20 & 0.1111 & 0.1113 & 0.1026 & \textbf{0.1116} & $+0.45\%$ \\
+& NDCG@10   & 0.0405 & \textbf{0.0415} & 0.0370 & 0.0406 & $+0.25\%$ \\
+& NDCG@20   & 0.0500 & \textbf{0.0508} & 0.0458 & 0.0502 & $+0.40\%$ \\
+\end{longtable}
+\endgroup
+
+Số liệu thực nghiệm cho thấy sự phân hóa mạnh mẽ giữa hai tập dữ liệu. Trên Amazon Sports (với độ thưa đồ thị siêu lớn 99.95\%), v4.1-SSB đã ghi nhận thắng lợi rực rỡ khi chính thức đánh bại STAIR Baseline trên toàn diện các thang đo. Recall@20 đạt 0.1116 (vượt mốc đối chứng 0.1111), đồng thời vượt qua kỷ lục SOTA của Giai đoạn~2 (0.1113). NDCG@20 đạt 0.0502 (tăng $+0.40\%$ so với baseline). Việc bảo toàn tô-pô kết hợp tăng cường trọng số an toàn đã giúp các gradient lan truyền chính xác qua các liên kết đồng thuận, duy trì động lực hội tụ liên tục đến tận epoch 500 mà không bị bão hòa sớm.
+
+Tuy nhiên, trên tập Amazon Baby (với mật độ tương tác cao gấp 2.6 lần), mô hình chỉ dừng ở mức phục hồi ngoạn mục ($+11\%$ đến $+16\%$ so với phiên bản v4 bị lỗi) nhưng vẫn chưa tiệm cận được baseline (Recall@20 kém $-8.35\%$). Sự phân hóa này xuất phát từ bản chất vật lý của đồ thị: trên đồ thị siêu thưa (Sports), cạnh kNN đa phương thức là cầu nối sống còn để lan truyền gradient; nhưng trên đồ thị có mật độ dày hơn (Baby), tín hiệu hành vi đã đủ mạnh. Việc áp dụng hệ số tăng cường đồng loạt $\alpha = 0.50$ đã tạo ra hiện tượng làm mịn phổ quá đà, làm mờ đi các tín hiệu cá nhân hóa.
+
+Về hiệu năng tính toán, kiến trúc v4.1-SSB thể hiện năng lực tối ưu hóa xuất sắc. Toàn bộ khâu thanh lọc và chuẩn hóa Laplacian được thực thi ngoại tuyến trên ma trận thưa, chỉ tiêu tốn từ 1.76 đến 4.02 giây. Trong quá trình huấn luyện online, thời gian mỗi epoch thậm chí còn nhanh hơn 22.6\% so với baseline do giảm tải tính toán dư thừa. Mức tiêu thụ VRAM đỉnh duy trì ở mức cực kỳ nhẹ (763.2\,MB trên Baby và 969.2\,MB trên Sports), đảm bảo an toàn tuyệt đối và sẵn sàng mở rộng cho các bài toán quy mô công nghiệp.
 \clearpage
