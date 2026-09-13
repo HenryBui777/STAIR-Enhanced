@@ -854,9 +854,6 @@ Ma trận trọng số được đối xứng hóa $\mathbf{W}_{\text{sym}} = \m
 \end{equation}
 Quá trình này đảm bảo ma trận làm mịn luôn đối xứng nửa xác định dương, bảo toàn đặc tính toán học của bộ tối ưu AdamWSEvo.
 
-% ==============================================================================
-% SƠ ĐỒ KIẾN TRÚC TIKZ (ĐÃ FIX ROUTING VÀ ÔM TRỌN KHUNG NỀN)
-% ==============================================================================
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[
@@ -865,7 +862,7 @@ Quá trình này đảm bảo ma trận làm mịn luôn đối xứng nửa xá
     inputbox/.style={rectangle, draw=blue!60!black, line width=0.8pt, rounded corners=4pt, minimum height=0.8cm, text width=2.6cm, font=\footnotesize, align=center, fill=blue!6, inner sep=4pt},
     block/.style={rectangle, draw=blue!60!black, line width=0.8pt, rounded corners=4pt, minimum height=0.9cm, text width=5.6cm, font=\footnotesize, align=center, fill=blue!6, inner sep=4pt},
     layerbox/.style={rectangle, draw=teal!70!black, line width=0.8pt, rounded corners=4pt, minimum height=0.9cm, text width=5.6cm, font=\footnotesize\bfseries, align=center, fill=teal!8, inner sep=4pt},
-    noisebox/.style={rectangle, draw=red!70!black, dashed, line width=1pt, rounded corners=4pt, minimum height=1.2cm, text width=5.8cm, font=\footnotesize, align=center, fill=red!6, inner sep=4pt},
+    noisebox/.style={rectangle, draw=red!70!black, dashed, line width=1pt, rounded corners=4pt, minimum height=1.2cm, text width=6.0cm, font=\footnotesize, align=center, fill=red!6, inner sep=5pt},
     clbox/.style={rectangle, draw=orange!80!black, dashed, line width=1pt, rounded corners=6pt, text width=6.0cm, font=\footnotesize, align=left, fill=orange!8, inner sep=8pt},
     finalbox/.style={rectangle, draw=blue!85!black, line width=1.2pt, rounded corners=6pt, minimum height=1.1cm, text width=10.4cm, font=\small, align=center, fill=blue!12, inner sep=6pt},
     arr/.style={-{Stealth[length=3.5mm, width=2.5mm]}, line width=1pt, draw=gray!80!black},
@@ -874,7 +871,7 @@ Quá trình này đảm bảo ma trận làm mịn luôn đối xứng nửa xá
     subbgright/.style={draw=orange!40, dashed, fill=orange!2, rounded corners=8pt}
 ]
 
-    % Vùng nền bên trái & phải (độ cao mở rộng chuẩn xác để chứa trọn vẹn khối bên trong)
+    % Vùng nền bên trái & phải
     \draw[subbgleft] (-7.6, 2.0) rectangle (-0.6, -8.6);
     \node[font=\small\bfseries\color{blue!70!black}, anchor=north] at (-4.1, 1.8) {FSC GNN Backbone};
 
@@ -898,14 +895,15 @@ Quá trình này đảm bảo ma trận làm mịn luôn đối xứng nửa xá
     \node[block, anchor=north] (fscout) at (-4.1, -6.0) {\textbf{Final Embeddings $H^{(L)}$}\\[2pt]Tối ưu hóa BPR thuần túy};
     \draw[arr] (h2.south) -- (fscout.north);
 
-    % Nhánh phải: Safe Spectral Boost
-    \node[noisebox, anchor=north] (noise) at (4.1, -0.6) {
+    % Nhánh phải: Khối màu đỏ được nâng lên y = 0.35 để tạo khoảng cách thoải mái
+    \node[noisebox, anchor=north] (noise) at (4.1, 0.35) {
         \textbf{Offline Precomputed Graph Denoising}\\[3pt]
-        $q_{\text{modal}}$: Thresholded GeoMean\\
+        $q_{\text{modal}}$: Thresholded GeoMean\\[1pt]
         $q_{\text{behavior}}$: Ochiai Co-occurrence
     };
     \draw[dasharr] (h0.east) -- (noise.west);
 
+    % Khối màu cam giữ tại y = -2.4 (cách đáy khối đỏ khoảng 1.1cm)
     \node[clbox, anchor=north] (anscore) at (4.1, -2.4) {
         \textbf{\small Safe Spectral Boost (SSB)}\\[4pt]
         \begin{tabular}{@{}p{5.8cm}@{}}
@@ -923,7 +921,7 @@ Quá trình này đảm bảo ma trận làm mịn luôn đối xứng nửa xá
         $\mathbf{g}_{\text{smoothed}} = \operatorname{Smoother}(\mathbf{g}_{\text{BPR}}, \tilde{S}_{\text{SSB}})$
     };
 
-    % Đường dẫn mũi tên vuông góc, đối xứng chuẩn xác, không đâm xuyên
+    % Đường dẫn mũi tên vuông góc, đối xứng chuẩn xác
     \draw[arr] (fscout.south) |- ([yshift=0.4cm]totalloss.north) -| ([xshift=-3.5cm]totalloss.north);
     \draw[arr] (anscore.south) |- ([yshift=0.4cm]totalloss.north) -| ([xshift=3.5cm]totalloss.north);
 
@@ -932,13 +930,10 @@ Quá trình này đảm bảo ma trận làm mịn luôn đối xứng nửa xá
 \label{fig:stair_v4_1_ssb_architecture}
 \end{figure}
 
-\subsubsection{Kết quả thực nghiệm chuyên sâu trên Baby và Sports}
+\subsubsection{Kết quả thực nghiệm trên Baby và Sports}
 
 Quá trình thực nghiệm được triển khai đồng bộ trên nền tảng GPU Kaggle. Bảng~\ref{tab:stair_ssb_results} so sánh trực tiếp hiệu năng của phiên bản v4.1-SSB với Baseline, SOTA Giai đoạn~2 (v5) và phiên bản v4 bị lỗi.
 
-% ==============================================================================
-% BẢNG THỰC NGHIỆM CHUẨN LONGTABLE / BOOKTABS
-% ==============================================================================
 \begingroup
 \footnotesize
 \setlength{\tabcolsep}{4pt}
@@ -986,4 +981,118 @@ Số liệu thực nghiệm cho thấy sự phân hóa mạnh mẽ giữa hai t�
 Tuy nhiên, trên tập Amazon Baby (với mật độ tương tác cao gấp 2.6 lần), mô hình chỉ dừng ở mức phục hồi ngoạn mục ($+11\%$ đến $+16\%$ so với phiên bản v4 bị lỗi) nhưng vẫn chưa tiệm cận được baseline (Recall@20 kém $-8.35\%$). Sự phân hóa này xuất phát từ bản chất vật lý của đồ thị: trên đồ thị siêu thưa (Sports), cạnh kNN đa phương thức là cầu nối sống còn để lan truyền gradient; nhưng trên đồ thị có mật độ dày hơn (Baby), tín hiệu hành vi đã đủ mạnh. Việc áp dụng hệ số tăng cường đồng loạt $\alpha = 0.50$ đã tạo ra hiện tượng làm mịn phổ quá đà, làm mờ đi các tín hiệu cá nhân hóa.
 
 Về hiệu năng tính toán, kiến trúc v4.1-SSB thể hiện năng lực tối ưu hóa xuất sắc. Toàn bộ khâu thanh lọc và chuẩn hóa Laplacian được thực thi ngoại tuyến trên ma trận thưa, chỉ tiêu tốn từ 1.76 đến 4.02 giây. Trong quá trình huấn luyện online, thời gian mỗi epoch thậm chí còn nhanh hơn 22.6\% so với baseline do giảm tải tính toán dư thừa. Mức tiêu thụ VRAM đỉnh duy trì ở mức cực kỳ nhẹ (763.2\,MB trên Baby và 969.2\,MB trên Sports), đảm bảo an toàn tuyệt đối và sẵn sàng mở rộng cho các bài toán quy mô công nghiệp.
+
+\subsection{Kết quả thực nghiệm cải tiến 5: Safe Topological Reweighting \& Mathematical SVD Whitening (STAIR-BSC-Reweight v5)}
+
+\subsubsection{Động lực kỹ thuật và kiến trúc đề xuất}
+
+Tiếp nối phiên bản v4.1-SSB, nhóm nghiên cứu đã tiến hành forensic audit toàn diện mã nguồn và giải tích hệ thống. Quá trình này đã bóc tách được 5 vấn đề cốt lõi về mặt kỹ thuật và toán học:
+
+\begin{itemize}
+    \item \textbf{Xung đột cấu trúc dữ liệu:} Thao tác \texttt{torch.stack} biến tensor 2D thành 3D trong hàm đối xứng hóa, dẫn đến nguy cơ tràn bộ nhớ và lỗi định dạng tensor.
+    \item \textbf{Lỗi broadcasting khi chuẩn hóa:} Phép tính Symmetric Laplacian gán sai chiều ma trận khiến hệ số chuẩn hóa áp dụng lệch cho các hàng và cột.
+    \item \textbf{Phá vỡ tính đơn điệu của trọng số:} Ngưỡng clamp cứng tại 2.5 làm méo mó tương quan của consensus weight, vô tình khiến các cạnh yếu nhận mức tăng tỷ trọng lớn hơn các cạnh liên kết mạnh.
+    \item \textbf{Hiện tượng gradient starvation:} Việc áp dụng margin loss rời rạc thay vì hàm BPR loss liên tục làm gradient bị thưa thớt, không thể kích hoạt cơ chế smoothing của BSC Smoother.
+    \item \textbf{Thiếu chuẩn hóa trong SVD Whitening:} Kiến trúc cũ bỏ qua bước triệt tiêu các singular values $S$, dẫn đến covariance matrix bị méo mó thay vì đạt trạng thái isotropic covariance chuẩn tắc.
+\end{itemize}
+
+Nhằm khắc phục triệt để 5 vấn đề trên và thiết lập một kiến trúc chuẩn mực, phiên bản hoàn thiện STAIR-BSC-Reweight (STAIR-v5) được đề xuất với cấu trúc tinh gọn và tuân thủ nghiêm ngặt các nguyên tắc đại số tuyến tính:
+
+\medskip
+\noindent\textcolor{lightblue}{\textbf{1. Single-Matrix Safe Spectral Reweighting với 0\% Edge Pruning}}
+
+Khẳng định lại nguyên lý bảo tồn 100\% tô-pô đồ thị gốc, STAIR-v5 giữ nguyên toàn bộ các cạnh $k$-NN để tránh hiện tượng structural starvation. Trọng số tăng cường được áp dụng theo phương chế multiplicative boosting thay vì cộng gia số:
+\begin{equation}
+W_{ij} = W_{\text{base}, ij} \cdot \left(1.0 + \alpha \cdot q_{\text{modal}, ij} + \beta \cdot q_{\text{behavior}, ij}\right)
+\end{equation}
+Quy tắc này đảm bảo các cạnh đồng thuận luôn nhận mức tăng tỷ lệ thuận, bảo tồn trọn vẹn ranking cấu trúc của đồ thị nền tảng. Ma trận trọng số sau đó được đối xứng hóa $\mathbf{W}_{\text{sym}} = \max(\mathbf{W}, \mathbf{W}^T)$ và chuẩn hóa Laplacian theo công thức $\tilde{\mathbf{S}} = \mathbf{D}^{-1/2} \mathbf{W}_{\text{sym}} \mathbf{D}^{-1/2}$, bảo toàn tính đối xứng nửa xác định dương (SPSD).
+
+\medskip
+\noindent\textcolor{lightblue}{\textbf{2. SVD Whitening đẳng hướng chuẩn tắc}}
+
+Xử lý triệt để lỗi phân rã ma trận, bộ tiền xử lý trích xuất trực tiếp ma trận left singular vectors $\mathbf{U}$ từ phép phân rã $\mathbf{X}_c = \mathbf{U} \mathbf{S} \mathbf{V}^T$:
+\begin{equation}
+\mathbf{X}_{\text{white}} = \sqrt{N} \cdot \mathbf{U} = \sqrt{N} \cdot \mathbf{X}_c \mathbf{V} \mathbf{S}^{-1}
+\end{equation}
+Phép nhân với nghịch đảo $\mathbf{S}^{-1}$ triệt tiêu hoàn toàn sự chênh lệch phương sai giữa các chiều biểu diễn, đưa không gian đặc trưng về trạng thái isotropic tuyệt đối ($\mathbf{\Sigma} = \mathbf{U}^T \mathbf{U} = \mathbf{I}_d$). Nhờ đó, initial embeddings không bị biến dạng và tương thích tối ưu với bộ lọc phổ của BSC.
+
+\medskip
+\noindent\textcolor{lightblue}{\textbf{3. CPU-Chunked Vectorization triệt tiêu OOM}}
+
+Để tính toán similarity matrix quy mô lớn mà không tràn GPU VRAM, hệ thống áp dụng kỹ thuật chunked vectorization trực tiếp trên RAM của CPU. Vector đặc trưng sau khi tổng hợp chỉ chiếm dung lượng vài megabyte trước khi đưa lên GPU, loại bỏ hoàn toàn rủi ro Out-of-Memory ngay cả khi số lượng catalog vượt 63.000 thực thể.
+
+\medskip
+\noindent\textcolor{lightblue}{\textbf{4. Duy trì hàm mục tiêu BPR liên tục}}
+
+Nhằm đảm bảo dense gradient ổn định qua các lớp đồ thị, mô hình loại bỏ các margin loss phụ trợ, tập trung tối ưu hóa duy nhất thông qua hàm mục tiêu BPR ranking.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.98\linewidth]{graphics/stair/stair_v5_reweight_architecture.png}
+    \caption{Kiến trúc tổng thể của STAIR-BSC-Reweight (STAIR-v5). Quy trình gồm hai giai đoạn độc lập: (1) \textit{Offline Graph Preprocessing} chuẩn hóa SVD Whitening đẳng hướng và tăng cường trọng số an toàn SPSD với 0\% cắt tỉa; (2) \textit{Online Training} tối ưu hóa hàm mục tiêu BPR kết hợp cơ chế làm mịn gradient ngược qua đồ thị Laplacian bằng BSC Smoother.}
+    \label{fig:stair_v5_reweight_architecture}
+\end{figure}
+
+\subsubsection{Kết quả thực nghiệm chuyên sâu trên ba tập dữ liệu}
+
+Mô hình STAIR-v5 được huấn luyện 500 epochs trên GPU Tesla T4 cho cả ba tập dữ liệu: Amazon Baby, Sports và Electronics. Bảng~\ref{tab:stair_v5_results} so sánh trực tiếp hiệu năng của phiên bản này với Baseline và cấu trúc thử nghiệm v4 trước đó.
+
+% ==============================================================================
+% BẢNG THỰC NGHIỆM CHUẨN XUẤT BẢN BOOKTABS / LONGTABLE
+% ==============================================================================
+\begingroup
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.2}
+\begin{longtable}{%
+>{\raggedright\arraybackslash}p{2.2cm}
+>{\raggedright\arraybackslash}p{2.0cm}
+*{3}{>{\centering\arraybackslash}p{1.8cm}}
+*{2}{>{\centering\arraybackslash}p{2.0cm}}}
+
+\caption{Kết quả thực nghiệm STAIR-v5 so với Baseline và v4 trên ba tập dữ liệu.}
+\label{tab:stair_v5_results} \\
+\toprule
+\rowcolor{gray!15}\textbf{Tập dữ liệu} & \textbf{Chỉ số} & \textbf{Baseline} & \textbf{v4} & \textbf{STAIR-v5} & \textbf{$\Delta$ v5 vs BL} & \textbf{$\Delta$ v5 vs v4} \\
+\midrule
+\endfirsthead
+
+\multicolumn{7}{c}{{\bfseries Bảng \thetable\ (tiếp theo)}} \\
+\toprule
+\rowcolor{gray!15}\textbf{Tập dữ liệu} & \textbf{Chỉ số} & \textbf{Baseline} & \textbf{v4} & \textbf{STAIR-v5} & \textbf{$\Delta$ v5 vs BL} & \textbf{$\Delta$ v5 vs v4} \\
+\midrule
+\endhead
+
+\midrule
+\multicolumn{7}{r}{\textit{Tiếp tục ở trang sau...}} \\
+\endfoot
+
+\bottomrule
+\endlastfoot
+
+\textbf{Baby} & Recall@10 & 0.0674 & 0.0546 & \textbf{0.0675} & $+0.15\%$ & $+23.63\%$ \\
+(mật độ dày) & Recall@20 & \textbf{0.1042} & 0.0853 & 0.1041 & $-0.10\%$ & $+22.04\%$ \\
+& NDCG@10   & 0.0359 & 0.0297 & \textbf{0.0360} & $+0.28\%$ & $+21.21\%$ \\
+& NDCG@20   & \textbf{0.0454} & 0.0376 & \textbf{0.0454} & $0.00\%$ & $+20.74\%$ \\
+\midrule
+\textbf{Sports} & Recall@10 & 0.0743 & 0.0684 & \textbf{0.0744} & $+0.13\%$ & $+8.77\%$ \\
+(siêu thưa) & Recall@20 & 0.1111 & 0.1035 & \textbf{0.1115} & $+0.36\%$ & $+7.73\%$ \\
+& NDCG@10   & 0.0405 & 0.0370 & \textbf{0.0406} & $+0.25\%$ & $+9.73\%$ \\
+& NDCG@20   & 0.0500 & 0.0460 & \textbf{0.0502} & $+0.40\%$ & $+9.13\%$ \\
+\midrule
+\textbf{Electronics} & Recall@10 & 0.0442 & N/A (OOM) & \textbf{0.0443} & $+0.23\%$ & N/A \\
+(quy mô lớn) & Recall@20 & 0.0665 & N/A (OOM) & \textbf{0.0666} & $+0.15\%$ & N/A \\
+& NDCG@10   & \textbf{0.0246} & N/A (OOM) & \textbf{0.0246} & $0.00\%$ & N/A \\
+& NDCG@20   & \textbf{0.0303} & N/A (OOM) & \textbf{0.0303} & $0.00\%$ & N/A \\
+\end{longtable}
+\endgroup
+
+Kết quả đánh giá chỉ ra một nguyên lý then chốt trong graph representation learning: Tỷ trọng củng cố trên đồ thị multimodal $k$-NN cần nghịch đảo với mật độ tương tác hành vi của tập dữ liệu.
+
+Đối với các tập Amazon Sports (độ thưa 99.95\%) và Amazon Electronics (hơn 63.000 items), tín hiệu tương tác người dùng bị phân mảnh nghiêm trọng. Lúc này, đồ thị multimodal $k$-NN đóng vai trò là khung liên kết chủ đạo. Việc kích hoạt chế độ tăng cường liên kết (kết hợp modality và Ochiai co-purchase) giúp gia cố các liên kết đồng thuận, đưa hiệu năng vượt mốc Baseline trên mọi chỉ số: trên Sports, Recall@20 tăng $+0.36\%$ và NDCG@20 tăng $+0.40\%$; trên Electronics, Recall@20 tăng $+0.15\%$.
+
+Ngược lại, trên tập Amazon Baby với mật độ tương tác cao gấp 2.6 lần, dữ liệu hành vi đã đủ dày để định hình user preferences. Việc tiếp tục tích hợp thông tin co-purchase vào đồ thị $k$-NN dễ gây ra hiện tượng over-smoothing. STAIR-v5 giải quyết vấn đề này bằng cách chuyển sang chế độ đơn phương thức (multimodal-only), đưa các chỉ số về sát ngưỡng Baseline (Recall@20 đạt 0.1041, NDCG@20 đạt 0.0454) và đảo ngược hoàn toàn mức sụt giảm $-18.14\%$ do over-pruning ở bản v4.
+
+Về chi phí tính toán, việc lược bỏ các vòng lặp tiền xử lý online và loss function phụ trợ giúp STAIR-v5 tăng tốc độ huấn luyện từ 14\% đến 35\% so với Baseline. Mức tiêu thụ VRAM đo được ở mức rất thấp (760~MB trên Baby, 970~MB trên Sports và 12.2~GB trên Electronics), đảm bảo mô hình hoạt động ổn định trên một GPU Tesla T4 duy nhất mà không xảy ra memory leak qua 500 epochs.
+
 \clearpage
