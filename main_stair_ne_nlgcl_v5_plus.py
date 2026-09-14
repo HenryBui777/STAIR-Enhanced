@@ -483,11 +483,50 @@ class CoachForSTAIR_NE_NLGCL_v5_Plus(freerec.launcher.Coach):
 # Main Execution Entry Point
 # ═════════════════════════════════════════════════════════════════════════════
 def main():
-    try:
-        dataset = getattr(freerec.data.datasets, cfg.dataset)(root=cfg.root)
-    except AttributeError:
+    # Auto-bridge dataset for FreeRec:
+    processed_dir = os.path.join(cfg.root, "Processed", cfg.dataset)
+    if os.path.islink(processed_dir) and not os.path.exists(processed_dir):
+        try:
+            os.unlink(processed_dir)
+        except Exception:
+            pass
+
+    if not os.path.exists(processed_dir) or (os.path.isdir(processed_dir) and not os.listdir(processed_dir)):
+        script_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in locals() else '.'
+        candidates = [
+            os.path.join(cfg.root, cfg.dataset),
+            os.path.join("/kaggle/data", cfg.dataset),
+            os.path.join("/kaggle/data/Processed", cfg.dataset),
+            os.path.join("/kaggle/working/STAIR/data", cfg.dataset),
+            os.path.join("/kaggle/working/STAIR-Enhanced/data", cfg.dataset),
+            os.path.join(script_dir, "data", cfg.dataset),
+            os.path.join("data", cfg.dataset),
+        ]
+        for cand in candidates:
+            if os.path.exists(cand) and os.path.isdir(cand) and os.path.abspath(cand) != os.path.abspath(processed_dir) and len(os.listdir(cand)) > 0:
+                os.makedirs(os.path.dirname(processed_dir), exist_ok=True)
+                try:
+                    os.symlink(cand, processed_dir)
+                    print(f"[DataSet] >>> Auto-bridged symlink: {cand} -> {processed_dir}")
+                except Exception:
+                    import shutil
+                    shutil.copytree(cand, processed_dir, dirs_exist_ok=True)
+                    print(f"[DataSet] >>> Auto-bridged copied: {cand} -> {processed_dir}")
+                break
+
+    # Robust dataset loading: freerec.data.datasets contains a submodule named 'tiktok',
+    # so getattr(...) returns a module rather than a class when cfg.dataset == 'tiktok'.
+    ds_cls = getattr(freerec.data.datasets, cfg.dataset, None)
+    if isinstance(ds_cls, type):
+        try:
+            dataset = ds_cls(root=cfg.root)
+        except Exception:
+            dataset = freerec.data.datasets.RecDataSet(
+                cfg.root, cfg.dataset, tasktag=getattr(cfg, "tasktag", None)
+            )
+    else:
         dataset = freerec.data.datasets.RecDataSet(
-            cfg.root, cfg.dataset, tasktag=cfg.tasktag
+            cfg.root, cfg.dataset, tasktag=getattr(cfg, "tasktag", None)
         )
 
     model = STAIR_NE_NLGCL_v5_Plus_Model(dataset)

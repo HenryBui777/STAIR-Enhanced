@@ -563,11 +563,19 @@ def main():
                     print(f"[DataSet] >>> Auto-bridged copied: {cand} -> {processed_dir}")
                 break
 
-    try:
-        dataset = getattr(freerec.data.datasets, cfg.dataset)(root=cfg.root)
-    except AttributeError:
+    # Robust dataset loading: freerec.data.datasets contains a submodule named 'tiktok',
+    # so getattr(...) returns a module rather than a class when cfg.dataset == 'tiktok'.
+    ds_cls = getattr(freerec.data.datasets, cfg.dataset, None)
+    if isinstance(ds_cls, type):
+        try:
+            dataset = ds_cls(root=cfg.root)
+        except Exception:
+            dataset = freerec.data.datasets.RecDataSet(
+                cfg.root, cfg.dataset, tasktag=getattr(cfg, 'tasktag', None)
+            )
+    else:
         dataset = freerec.data.datasets.RecDataSet(
-            cfg.root, cfg.dataset, tasktag=cfg.tasktag
+            cfg.root, cfg.dataset, tasktag=getattr(cfg, 'tasktag', None)
         )
 
     model = STAIR_SBN_BSC_v4(dataset)

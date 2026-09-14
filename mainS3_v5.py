@@ -615,7 +615,13 @@ def main():
 
     # Auto-bridge dataset cho Kaggle:
     processed_dir = os.path.join(cfg.root, "Processed", cfg.dataset)
-    if not os.path.exists(processed_dir) or not os.listdir(processed_dir):
+    if os.path.islink(processed_dir) and not os.path.exists(processed_dir):
+        try:
+            os.unlink(processed_dir)
+        except Exception:
+            pass
+
+    if not os.path.exists(processed_dir) or (os.path.isdir(processed_dir) and not os.listdir(processed_dir)):
         script_dir = os.path.dirname(os.path.abspath(__file__))
         candidates = [
             os.path.join(cfg.root, cfg.dataset),
@@ -640,9 +646,17 @@ def main():
                     print(f"[DataSet] >>> Auto-bridged copied: {cand} -> {processed_dir}")
                 break
 
-    try:
-        dataset = getattr(freerec.data.datasets, cfg.dataset)(root=cfg.root)
-    except AttributeError:
+    # Robust dataset loading: freerec.data.datasets contains a submodule named 'tiktok',
+    # so getattr(...) returns a module rather than a class when cfg.dataset == 'tiktok'.
+    ds_cls = getattr(freerec.data.datasets, cfg.dataset, None)
+    if isinstance(ds_cls, type):
+        try:
+            dataset = ds_cls(root=cfg.root)
+        except Exception:
+            dataset = freerec.data.datasets.RecDataSet(
+                cfg.root, cfg.dataset, tasktag=getattr(cfg, "tasktag", None)
+            )
+    else:
         dataset = freerec.data.datasets.RecDataSet(
             cfg.root, cfg.dataset, tasktag=getattr(cfg, "tasktag", None)
         )

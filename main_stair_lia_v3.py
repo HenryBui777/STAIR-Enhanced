@@ -358,10 +358,20 @@ class CoachForSTAIR_LIA_v3(freerec.launcher.Coach):
 
 
 def main():
-    try:
-        dataset = getattr(freerec.data.datasets, cfg.dataset)(root=cfg.root)
-    except AttributeError:
-        dataset = freerec.data.datasets.RecDataSet(cfg.root, cfg.dataset, tasktag=cfg.tasktag)
+    # Robust dataset loading: freerec.data.datasets contains a submodule named 'tiktok',
+    # so getattr(...) returns a module rather than a class when cfg.dataset == 'tiktok'.
+    ds_cls = getattr(freerec.data.datasets, cfg.dataset, None)
+    if isinstance(ds_cls, type):
+        try:
+            dataset = ds_cls(root=cfg.root)
+        except Exception:
+            dataset = freerec.data.datasets.RecDataSet(
+                cfg.root, cfg.dataset, tasktag=getattr(cfg, "tasktag", None)
+            )
+    else:
+        dataset = freerec.data.datasets.RecDataSet(
+            cfg.root, cfg.dataset, tasktag=getattr(cfg, "tasktag", None)
+        )
 
     model = STAIR_LIA_v3(dataset)
 

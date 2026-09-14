@@ -103,6 +103,10 @@ class STAIR(freerec.models.GenRecArch):
         return params
 
     def whitening(self, feats: torch.Tensor):
+        if not isinstance(feats, torch.Tensor):
+            feats = torch.tensor(feats, dtype=torch.float32)
+        else:
+            feats = feats.float()
         feats = feats - feats.mean(0, keepdim=True)
         feats, _, _ = torch.linalg.svd(feats, full_matrices=False)
         return feats[:, :cfg.embedding_dim] * math.sqrt(self.Item.count / cfg.embedding_dim)
@@ -111,6 +115,10 @@ class STAIR(freerec.models.GenRecArch):
         r"""
         Compute the kNN graph.
         """
+        if not isinstance(features, torch.Tensor):
+            features = torch.tensor(features, dtype=torch.float32)
+        else:
+            features = features.float()
         features = F.normalize(features, dim=-1) # (N, D)
         sim = features @ features.t() # (N, N)
         sim.fill_diagonal_(-10.)
@@ -122,12 +130,22 @@ class STAIR(freerec.models.GenRecArch):
     def prepare(self, path: str):
         from freerec.utils import import_pickle
 
-        mfeats = [
-            import_pickle(
-                os.path.join(path, mfile)
-            )
-            for mfile in cfg.mfiles
-        ]
+        mfeats = []
+        for mfile in cfg.mfiles:
+            mpath = os.path.join(path, mfile)
+            if not os.path.exists(mpath):
+                # Fallback search across common data locations
+                for cand in [
+                    os.path.join(cfg.root, cfg.dataset, mfile),
+                    os.path.join("/kaggle/data", cfg.dataset, mfile),
+                    os.path.join("/kaggle/working/STAIR/data", cfg.dataset, mfile),
+                    os.path.join("/kaggle/working/STAIR-Enhanced/data", cfg.dataset, mfile),
+                    os.path.join("data", cfg.dataset, mfile),
+                ]:
+                    if os.path.exists(cand):
+                        mpath = cand
+                        break
+            mfeats.append(import_pickle(mpath))
 
         edge_index = torch.cat(
             [self.get_knn_graph(feats, k) for feats, k in zip(mfeats, cfg.num_neighbors)],
@@ -282,7 +300,13 @@ def main():
 
     # Robust auto-bridge for FreeRec:
     processed_dir = os.path.join(cfg.root, "Processed", cfg.dataset)
-    if not os.path.exists(processed_dir) or not os.listdir(processed_dir):
+    if os.path.islink(processed_dir) and not os.path.exists(processed_dir):
+        try:
+            os.unlink(processed_dir)
+        except Exception:
+            pass
+
+    if not os.path.exists(processed_dir) or (os.path.isdir(processed_dir) and not os.listdir(processed_dir)):
         script_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in locals() else '.'
         candidates = [
             os.path.join(cfg.root, cfg.dataset),
@@ -305,10 +329,21 @@ def main():
                     print(f"[DataSet] >>> Auto-bridged copied: {cand} -> {processed_dir}")
                 break
 
-    try:
-        dataset = getattr(freerec.data.datasets, cfg.dataset)(root=cfg.root)
-    except AttributeError:
-        dataset = freerec.data.datasets.RecDataSet(cfg.root, cfg.dataset, tasktag=getattr(cfg, 'tasktag', None))
+    # Robust dataset loading:
+    # freerec.data.datasets contains a submodule named 'tiktok', so getattr(...) returns a module
+    # rather than a class when cfg.dataset == 'tiktok'. We ensure ds_cls is a class (type).
+    ds_cls = getattr(freerec.data.datasets, cfg.dataset, None)
+    if isinstance(ds_cls, type):
+        try:
+            dataset = ds_cls(root=cfg.root)
+        except Exception:
+            dataset = freerec.data.datasets.RecDataSet(
+                cfg.root, cfg.dataset, tasktag=getattr(cfg, 'tasktag', None)
+            )
+    else:
+        dataset = freerec.data.datasets.RecDataSet(
+            cfg.root, cfg.dataset, tasktag=getattr(cfg, 'tasktag', None)
+        )
 
     model = STAIR(dataset)
 
