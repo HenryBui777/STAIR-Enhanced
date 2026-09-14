@@ -1,6 +1,21 @@
-
+# External benchmark repos
 TAMER/
 NLGCL-Plus/
 SG-URInit/
+DiffMM/
+CFDTBD/
+CLID-master/
+CRANE/
+MENTOR/
+MuSICRec-3CEE/
+NEGCL/
+main_gd1/
 
+# Large legacy dataset
 data/Amazon2014Baby_550_MMRec/
+data/Amazon2014Baby_550_MMRec.zip
+
+# Python / Pytest cache
+__pycache__/
+*.pyc
+.pytest_cache/

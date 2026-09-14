@@ -795,14 +795,14 @@ Quá trình thực nghiệm được triển khai trên môi trường GPU Kaggl
 & NDCG@10 & 0.0405 & 0.0415 & 0.0401 & 0.0414 & $+2.22\%$ \\
 & NDCG@20 & 0.0500 & 0.0508 & 0.0494 & \textbf{0.0508} & $+1.60\%$ \\
 \midrule
-\textbf{Electronics} & Recall@10 & 0.0442 & 0.0451 & --- & \textbf{0.0457} & $+3.39\%$ \\
-(best epoch 490) & Recall@20 & 0.0665 & 0.0678 & --- & \textbf{0.0680} & $+2.26\%$ \\
-& NDCG@10 & 0.0246 & 0.0252 & --- & \textbf{0.0257} & $+4.47\%$ \\
-& NDCG@20 & 0.0303 & 0.0311 & --- & \textbf{0.0314} & $+3.63\%$ \\
+\textbf{Electronics} & Recall@10 & 0.0440 & 0.0451 & --- & \textbf{0.0457} & $+3.86\%$ \\
+(best epoch 490) & Recall@20 & 0.0663 & 0.0678 & --- & \textbf{0.0680} & $+2.56\%$ \\
+& NDCG@10 & 0.0245 & 0.0252 & --- & \textbf{0.0257} & $+4.90\%$ \\
+& NDCG@20 & 0.0302 & 0.0311 & --- & \textbf{0.0314} & $+3.97\%$ \\
 \end{longtable}
 \endgroup
 
-Trên tập dữ liệu khổng lồ Amazon Electronics (với gần 1.7 triệu tương tác), phiên bản STAIR-NE-NLGCL+ (v3) đã thiết lập kỷ lục SOTA tuyệt đối trên toàn bộ các chỉ số đo lường. Mô hình đạt mức tăng trưởng đột phá với NDCG@10 tăng $+4.47\%$, NDCG@20 tăng $+3.63\%$ và Recall@20 tăng $+2.26\%$ so với baseline. Việc loại bỏ lớp MLP projection head đã phát huy tối đa tác dụng, cho phép dòng gradient tương phản tác động trực diện vào không gian đồ thị để phân tách các mục tiêu ở top đầu danh sách.
+Trên tập dữ liệu khổng lồ Amazon Electronics (với gần 1.7 triệu tương tác), phiên bản STAIR-NE-NLGCL+ (v3) đã thiết lập kỷ lục SOTA tuyệt đối trên toàn bộ các chỉ số đo lường. Mô hình đạt mức tăng trưởng đột phá với Recall@10 tăng $+3.86\%$, Recall@20 tăng $+2.56\%$, NDCG@10 tăng $+4.90\%$ và NDCG@20 tăng $+3.97\%$ so với baseline. Việc loại bỏ lớp MLP projection head đã phát huy tối đa tác dụng, cho phép dòng gradient tương phản tác động trực diện vào không gian đồ thị để phân tách các mục tiêu ở top đầu danh sách.
 
 Với tập Amazon Sports (đồ thị siêu thưa 99.95\%), STAIR-NE-NLGCL+ (v3) tiếp tục bứt phá để lập kỷ lục mới ở chỉ số Recall@20 (đạt 0.1118, cao hơn mức kỷ lục cũ 0.1113 của bản v5 Giai đoạn~2), đồng thời cân bằng kỷ lục NDCG@20 ở mức 0.0508. Cơ chế duy trì trọng số tương phản tĩnh $\lambda = 0.010$ đóng vai trò cốt lõi giúp đồ thị siêu thưa không bị bão hòa sớm, duy trì lực đẩy để mô hình tiếp tục học và cải thiện liên tục đến tận epoch 500. Trên tập Amazon Baby, mô hình phục hồi hoàn toàn các chỉ số về sát chuẩn baseline, khắc phục dứt điểm sự sụt giảm nghiêm trọng từng ghi nhận ở các phiên bản trước đó của Giai đoạn~3 (như v1 và v2.1).
 
@@ -1080,16 +1080,16 @@ Mô hình STAIR-v5 được huấn luyện 500 epochs trên GPU Tesla T4 cho c�
 & NDCG@10   & 0.0405 & 0.0370 & \textbf{0.0406} & $+0.25\%$ & $+9.73\%$ \\
 & NDCG@20   & 0.0500 & 0.0460 & \textbf{0.0502} & $+0.40\%$ & $+9.13\%$ \\
 \midrule
-\textbf{Electronics} & Recall@10 & 0.0442 & --- & \textbf{0.0443} & $+0.23\%$ & --- \\
-(quy mô lớn) & Recall@20 & 0.0665 & --- & \textbf{0.0666} & $+0.15\%$ & --- \\
-& NDCG@10   & \textbf{0.0246} & --- & \textbf{0.0246} & $0.00\%$ & --- \\
-& NDCG@20   & \textbf{0.0303} & --- & \textbf{0.0303} & $0.00\%$ & --- \\
+\textbf{Electronics} & Recall@10 & 0.0440 & --- & \textbf{0.0443} & $+0.68\%$ & --- \\
+(quy mô lớn) & Recall@20 & 0.0663 & --- & \textbf{0.0666} & $+0.45\%$ & --- \\
+& NDCG@10   & 0.0245 & --- & \textbf{0.0246} & $+0.41\%$ & --- \\
+& NDCG@20   & 0.0302 & --- & \textbf{0.0303} & $+0.33\%$ & --- \\
 \end{longtable}
 \endgroup
 
 Kết quả đánh giá chỉ ra một nguyên lý then chốt trong graph representation learning: Tỷ trọng củng cố trên đồ thị multimodal $k$-NN cần nghịch đảo với mật độ tương tác hành vi của tập dữ liệu.
 
-Đối với các tập Amazon Sports (độ thưa 99.95\%) và Amazon Electronics (hơn 63.000 items), tín hiệu tương tác người dùng bị phân mảnh nghiêm trọng. Lúc này, đồ thị multimodal $k$-NN đóng vai trò là khung liên kết chủ đạo. Việc kích hoạt chế độ tăng cường liên kết (kết hợp modality và Ochiai co-purchase) giúp gia cố các liên kết đồng thuận, đưa hiệu năng vượt mốc Baseline trên mọi chỉ số: trên Sports, Recall@20 tăng $+0.36\%$ và NDCG@20 tăng $+0.40\%$; trên Electronics, Recall@20 tăng $+0.15\%$.
+Đối với các tập Amazon Sports (độ thưa 99.95\%) và Amazon Electronics (hơn 63.000 items), tín hiệu tương tác người dùng bị phân mảnh nghiêm trọng. Lúc này, đồ thị multimodal $k$-NN đóng vai trò là khung liên kết chủ đạo. Việc kích hoạt chế độ tăng cường liên kết (kết hợp modality và Ochiai co-purchase) giúp gia cố các liên kết đồng thuận, đưa hiệu năng vượt mốc Baseline trên mọi chỉ số: trên Sports, Recall@20 tăng $+0.36\%$ và NDCG@20 tăng $+0.40\%$; trên Electronics, Recall@10 tăng $+0.68\%$, Recall@20 tăng $+0.45\%$, NDCG@10 tăng $+0.41\%$ và NDCG@20 tăng $+0.33\%$.
 
 Ngược lại, trên tập Amazon Baby với mật độ tương tác cao gấp 2.6 lần, dữ liệu hành vi đã đủ dày để định hình user preferences. Việc tiếp tục tích hợp thông tin co-purchase vào đồ thị $k$-NN dễ gây ra hiện tượng over-smoothing. STAIR-v5 giải quyết vấn đề này bằng cách chuyển sang chế độ đơn phương thức (multimodal-only), đưa các chỉ số về sát ngưỡng Baseline (Recall@20 đạt 0.1041, NDCG@20 đạt 0.0454) và đảo ngược hoàn toàn mức sụt giảm $-18.14\%$ do over-pruning ở bản v4.
 
@@ -1143,10 +1143,10 @@ Nhằm cung cấp cái nhìn tổng quan, toàn diện và có hệ thống về
 & NDCG@10   & 0.0405 & 0.0396 & 0.0401 & \textbf{0.0414} & 0.0370 & 0.0406 & 0.0406 \\
 & NDCG@20   & 0.0500 & 0.0493 & 0.0494 & \textbf{0.0508} & 0.0460 & 0.0502 & 0.0502 \\
 \midrule
-\textbf{Electronics} & Recall@10 & 0.0442 & --- & --- & \textbf{0.0457} & --- & --- & 0.0443 \\
-(quy mô lớn) & Recall@20 & 0.0665 & --- & --- & \textbf{0.0680} & --- & --- & 0.0666 \\
-& NDCG@10   & 0.0246 & --- & --- & \textbf{0.0257} & --- & --- & 0.0246 \\
-& NDCG@20   & 0.0303 & --- & --- & \textbf{0.0314} & --- & --- & 0.0303 \\
+\textbf{Electronics} & Recall@10 & 0.0440 & --- & --- & \textbf{0.0457} & --- & --- & 0.0443 \\
+(quy mô lớn) & Recall@20 & 0.0663 & --- & --- & \textbf{0.0680} & --- & --- & 0.0666 \\
+& NDCG@10   & 0.0245 & --- & --- & \textbf{0.0257} & --- & --- & 0.0246 \\
+& NDCG@20   & 0.0302 & --- & --- & \textbf{0.0314} & --- & --- & 0.0303 \\
 \end{longtable}
 \endgroup
 
@@ -1157,7 +1157,7 @@ Từ bức tranh đối chuẩn tổng thể tại Bảng~\ref{tab:stair_master_
 \begin{enumerate}
     \item \textbf{Sự phân hóa giữa hai trường phái kỹ thuật (Contrastive Learning vs. Graph Reweighting):}
     \begin{itemize}
-        \item \textit{Trường phái học tương phản đồ thị (v1, v2.1, v3):} Đạt đỉnh cao đột phá tại phiên bản \textbf{STAIR-NE-NLGCL+ (v3)}. Việc loại bỏ hoàn toàn lớp chiếu MLP trung gian (vốn gây biến dạng không gian biểu diễn ở v1 và v2.1), đồng thời đưa dòng gradient tương phản tác động trực diện vào các tầng lân cận $H^{(0)} \leftrightarrow H^{(1)}$ kết hợp True Sign-Preserving Noise và Linear HANS đã giúp v3 lập kỷ lục SOTA tuyệt đối trên Amazon Sports (Recall@20 đạt 0.1118, NDCG@20 đạt 0.0508) và Amazon Electronics (Recall@20 tăng $+2.26\%$, NDCG@20 tăng $+3.63\%$). Cơ chế này tối ưu vượt trội cho việc phân tách các mục tiêu ở top đầu danh sách xếp hạng.
+        \item \textit{Trường phái học tương phản đồ thị (v1, v2.1, v3):} Đạt đỉnh cao đột phá tại phiên bản \textbf{STAIR-NE-NLGCL+ (v3)}. Việc loại bỏ hoàn toàn lớp chiếu MLP trung gian (vốn gây biến dạng không gian biểu diễn ở v1 và v2.1), đồng thời đưa dòng gradient tương phản tác động trực diện vào các tầng lân cận $H^{(0)} \leftrightarrow H^{(1)}$ kết hợp True Sign-Preserving Noise và Linear HANS đã giúp v3 lập kỷ lục SOTA tuyệt đối trên Amazon Sports (Recall@20 đạt 0.1118, NDCG@20 đạt 0.0508) và Amazon Electronics (Recall@20 tăng $+2.56\%$, NDCG@20 tăng $+3.97\%$). Cơ chế này tối ưu vượt trội cho việc phân tách các mục tiêu ở top đầu danh sách xếp hạng.
         \item \textit{Trường phái tối ưu hóa bộ làm mịn ngược và cấu trúc đồ thị (v4, v4.1, v5):} Xuất phát từ bài học thực chứng của v4 (khi cắt tỉa tự thích ứng quá mức làm gãy vụn cấu trúc truyền tin của BSC), phiên bản \textbf{STAIR-v5 (STAIR-BSC-Reweight)} đã xác lập nguyên tắc bảo tồn 100\% tô-pô kết hợp SVD Whitening đẳng hướng chuẩn tắc và Multiplicative Reweighting. STAIR-v5 giải quyết triệt để sự suy thoái trên tập Amazon Baby (Recall@10 đạt \textbf{0.0675} và NDCG@10 đạt \textbf{0.0360}, chính thức vượt Baseline; Recall@20 đạt 0.1041 và NDCG@20 đạt \textbf{0.0454}, cân bằng 100\% Baseline), đồng thời vượt Baseline trên cả Sports và Electronics mà không đưa thêm bất kỳ tham số hay hàm mất mát phụ trợ nào vào pha huấn luyện online.
     \end{itemize}
 

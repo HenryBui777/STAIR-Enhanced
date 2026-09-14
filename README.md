@@ -64,14 +64,14 @@ The complete architectural pipeline of STAIR and its enhanced components is illu
 - **No-MLP Direct Alignment:** Eliminates non-linear projection heads $g_\phi(\cdot)$, applying InfoNCE loss directly across representation levels: $\mathcal{L}_{cl} = \mathcal{L}_{InfoNCE}(H^{(0)}, H^{(1)})$.
 - **True Sign-Preserving Noise Perturbation:** Generates non-destructive graph augmentations via $\tilde{z} = z + \varepsilon \odot \text{sign}(z)$, maintaining feature directionality.
 - **Linear HANS Scheduler:** Dynamically anneals negative penalty weights linearly across epochs, eliminating false negative collisions.
-- **Results:** Achieves **+1.35% Recall@10** and **+2.22% NDCG@10** on Amazon Sports; **+2.26% Recall@20** and **+3.63% NDCG@20** on Amazon Electronics.
+- **Results:** Achieves **+1.35% Recall@10** and **+2.22% NDCG@10** on Amazon Sports; **+2.56% Recall@20** and **+3.97% NDCG@20** on Amazon Electronics (+3.86% Recall@10, +4.90% NDCG@10).
 
 #### 🛡️ 2. STAIR-BSC-Reweight (v5) — Spectral & Efficiency Champion
 - **100% Structural Topology Preservation:** Proves that edge pruning destroys BSC diffusion capacity; maintains complete graph connectivity and ensures the graph Laplacian remains Symmetric Positive Semi-Definite (SPSD).
 - **Offline Isotropic SVD Whitening:** Applies closed-form SVD decorrelation: $\tilde{X} = X V \Sigma^{-1} V^\top$, standardizing variance across modal feature dimensions.
 - **Multiplicative Multi-View Reweighting:** Replaces hard edge pruning with smooth edge confidence modulation: $S_{ij}^{(reweight)} = S_{ij}^{(modal)} \odot \left(1 + \beta \cdot \text{Ochiai}(i, j)\right)$.
 - **CPU-Chunked Vectorization:** Precomputes similarity matrices in CPU chunks without CUDA allocation, overcoming OOM on Electronics with flat VRAM usage throughout 500 epochs.
-- **Results:** Outperforms Baseline on **all three benchmarks**, reversing the Baby density degradation (**Recall@10: 0.0675**, **NDCG@10: 0.0360**).
+- **Results:** Outperforms Baseline on **all three benchmarks**, reversing the Baby density degradation (**Recall@10: 0.0675**, **NDCG@10: 0.0360**) and improving on Electronics (+0.45% Recall@20, +0.68% Recall@10, +0.41% NDCG@10, +0.33% NDCG@20).
 
 ---
 
@@ -89,10 +89,10 @@ Extensive evaluations were conducted across three standard Amazon review dataset
 | *(Ultra-Sparse)* | Recall@20 | 0.1111 | 0.1098 | 0.1091 | **0.1118** | 0.1035 | 0.1116 | 0.1115 |
 | | NDCG@10 | 0.0405 | 0.0396 | 0.0401 | **0.0414** | 0.0370 | 0.0406 | 0.0406 |
 | | NDCG@20 | 0.0500 | 0.0493 | 0.0494 | **0.0508** | 0.0460 | 0.0502 | 0.0502 |
-| **Amazon Electronics** | Recall@10 | 0.0442 | --- | --- | **0.0457** | --- | --- | 0.0443 |
-| *(Large-Scale)* | Recall@20 | 0.0665 | --- | --- | **0.0680** | --- | --- | 0.0666 |
-| | NDCG@10 | 0.0246 | --- | --- | **0.0257** | --- | --- | 0.0246 |
-| | NDCG@20 | 0.0303 | --- | --- | **0.0314** | --- | --- | 0.0303 |
+| **Amazon Electronics** | Recall@10 | 0.0440 | --- | --- | **0.0457** | --- | --- | 0.0443 |
+| *(Large-Scale)* | Recall@20 | 0.0663 | --- | --- | **0.0680** | --- | --- | 0.0666 |
+| | NDCG@10 | 0.0245 | --- | --- | **0.0257** | --- | --- | 0.0246 |
+| | NDCG@20 | 0.0302 | --- | --- | **0.0314** | --- | --- | 0.0303 |
 
 > **Key Takeaways:**
 > - **STAIR-NE-NLGCL+ (v3)** is the undisputed SOTA model for ranking discrimination in sparse graphs (Sports & Electronics).
