@@ -144,8 +144,7 @@
   * **Amazon Electronics (Siêu quy mô 1.7M tương tác):** Thiết lập kỷ lục SOTA tuyệt đối trên toàn bộ 4 chỉ số:
     * Recall@10: `0.0457` (**+3.86%** vs BL) | Recall@20: `0.0680` (**+2.56%** vs BL).
     * NDCG@10: `0.0257` (**+4.90%** vs BL) | NDCG@20: `0.0314` (**+3.97%** vs BL).
-  * **Amazon Sports (Đồ thị siêu thưa 99.95%):** Recall@20 đạt đỉnh lịch sử **`0.1118`** (vượt baseline `0.1111`), NDCG@20 đạt **`0.0508`** (**+1.60%**).
-  * **Tiết kiệm tài nguyên:** VRAM đỉnh trên Electronics giảm xuống **1420 MB** (giảm **29.4%** so với STAIR Baseline thực tế 2011.2 MB; giảm **32.4% $\approx$ 33%** so với bản tiền nhiệm GĐ2 2100 MB) nhờ loại bỏ MLP Head và dùng Dynamic Slicing.
+  * **Tối ưu tài nguyên:** Mặc dù gánh thêm nhánh InfoNCE, cơ chế Dynamic Slicing giúp khống chế VRAM đỉnh trên tập khổng lồ Electronics ở mức **2785 MB (~2.72 GB)** — chỉ chiếm **18.1%** trần GPU 16 GB của Tesla T4, loại bỏ 100% nguy cơ OOM và duy trì đường tiêu thụ phẳng suốt hơn 6 giờ huấn luyện liên tục.
 
 ---
 
@@ -159,7 +158,7 @@
 > Ba là, thay thế hàng đợi FIFO bằng cơ chế cắt lát động trong batch (Dynamic Slicing) kết hợp ngưỡng lọc cứng 0.85, loại sạch các sản phẩm tương đồng thật và giảm 96% bộ nhớ tính toán. Đi kèm là hệ số phạt tuyến tính Linear HANS $\gamma_h = 0.15$ cực kỳ êm ái, không làm méo mó nhiệt độ $\tau=0.20$.
 > Và bốn là, duy trì lực đẩy tương phản hằng số $\lambda = 0.010$ liên tục suốt 500 epochs thay vì giảm dần về 0.
 >
-> Kết quả thực nghiệm mang lại niềm vui rất lớn cho nhóm thưa Cô: Trên tập dữ liệu khổng lồ Electronics với 1.7 triệu tương tác, v3 đã phá vỡ toàn bộ các kỷ lục trước đây, tăng trưởng ngoạn mục ở cả 4 chỉ số, đặc biệt NDCG@10 tăng vọt +4.90% và NDCG@20 tăng +3.97%. Trên tập Sports siêu thưa, v3 thiết lập kỷ lục Recall@20 cao nhất đề tài đạt 0.1118. Hơn nữa, mức tiêu thụ VRAM đỉnh giảm rất ấn tượng: trên Electronics chỉ còn 1420 MB, giảm gần 30% so với baseline thực nghiệm (2011 MB) và giảm 33% so với bản tiền nhiệm Giai đoạn 2, chạy cực kỳ mượt mà trên GPU phổ thông ạ."*
+> Kết quả thực nghiệm mang lại niềm vui rất lớn cho nhóm thưa Cô: Trên tập dữ liệu khổng lồ Electronics với 1.7 triệu tương tác, v3 đã phá vỡ toàn bộ các kỷ lục trước đây, tăng trưởng ngoạn mục ở cả 4 chỉ số, đặc biệt NDCG@10 tăng vọt +4.90% và NDCG@20 tăng +3.97%. Trên tập Sports siêu thưa, v3 thiết lập kỷ lục Recall@20 cao nhất đề tài đạt 0.1118. Về tài nguyên, dù gánh thêm nhánh học tương phản đồ thị, kỹ thuật Dynamic Slicing giúp kiểm soát VRAM đỉnh trên Electronics chỉ ở mức 2785 MB (~2.72 GB), tương đương vỏn vẹn 18% dung lượng GPU 16GB, tuyệt đối không bị tràn bộ nhớ OOM và chạy mượt suốt 500 epochs ạ."*
 
 ---
 

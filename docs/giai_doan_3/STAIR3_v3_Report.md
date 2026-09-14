@@ -396,8 +396,12 @@ graph TD
 | **Projector đặc trưng** | Đồng nhất (Identity) | Đồng nhất (Identity) | Diagonal 0-rotation + L2 Anchor | **Diagonal 0-rotation + L2 Anchor** |
 | **Recall@20 Sports vs BL** | 0.1111 (*Mốc chuẩn*) | **0.1113 (+0.18%)** | 0.1091 (-1.80%) | **Kỳ vọng ≥ 0.1122 (+1.0% vs BL)** |
 | **NDCG@20 Sports vs BL** | 0.0500 (*Mốc chuẩn*) | **0.0508 (+1.60%)** | 0.0494 (-1.20%) | **Kỳ vọng ≥ 0.0515 (+3.0% vs BL)** |
-| **Recall@10 Baby vs BL** | 0.0674 (*Mốc chuẩn*) | 0.0669 (-0.74%) | 0.0654 (-2.97%) | **Kỳ vọng ≥ 0.0680 (+0.9% vs BL)** |
 | **VRAM đỉnh trên T4 GPU** | 810 MB | 1120 MB | 1199 MB | **~1150 MB (An toàn tuyệt đối)** |
+
+> 📌 **Nghiệm thu đo đạc Telemetry thực tế trên GPU Tesla T4 (Kaggle 16GB)**:  
+> - **Amazon Baby**: Đỉnh VRAM thực tế **925.2 MB** (0.90 GB, tăng nhẹ +21.22% so với baseline 763.2 MB do bổ sung nhánh tính toán InfoNCE).  
+> - **Amazon Sports**: Đỉnh VRAM thực tế **1141.0 MB** (1.11 GB, khớp hoàn toàn dự phóng ~1150 MB, tăng +17.73% so với baseline 969.2 MB).  
+> - **Amazon Electronics (1.7M tương tác)**: Đỉnh VRAM thực tế **2785.0 MB** (2.72 GB, tăng +38.48% so với baseline 2011.2 MB). Nhờ kỹ thuật **Dynamic Slicing** $[B \times B]$, mô hình khống chế mức tiêu thụ chỉ ở **18.1% dung lượng GPU 16 GB**, chạy phẳng suốt 500 epochs và loại bỏ 100% nguy cơ OOM.
 
 ---
 

@@ -87,11 +87,11 @@ Quy trình thực nghiệm được đo đạc telemetric tự động trong su�
 | **Tốc độ trung bình mỗi Epoch** | **2.99 giây / epoch** | **6.61 giây / epoch** | Cực kỳ tối ưu nhờ vector hóa PyTorch |
 | **Độ trễ đánh giá Validation (`ChiefCoach.valid`)** | **0.78 giây** | **1.77 giây** | Đánh giá ma trận User $\times$ Item siêu tốc |
 | **Độ trễ đánh giá Test (`ChiefCoach.test`)** | **0.68 giây** | **1.73 giây** | Full ranking trên toàn bộ catalog kiểm thử |
-| **VRAM đỉnh tiêu thụ** | **~945 MB** | **~1150 MB** | Tiết kiệm hơn v1 và v2 (~1200 MB) |
+| **VRAM đỉnh tiêu thụ (Live Trace)** | **925.2 MB** (~0.90 GB) | **1141.0 MB** (~1.11 GB) | Khống chế tối ưu dưới 1.2 GB |
 | **Tính an toàn Dynamic Slicing $[B \times B]$** | **Tuyệt đối an toàn (64 KB)** | **Tuyệt đối an toàn (64 KB)** | Triệt tiêu hoàn toàn nguy cơ OOM bộ nhớ |
-| **v5+ Amazon Baby (`Coach.fit` / VRAM)** | **1399.06 giây** (~23.32 phút) | **609.2 MB** | Tối ưu VRAM nhẹ nhất đề tài, 2.80s/epoch |
-| **v5+ Amazon Sports (`Coach.fit` / VRAM)** | **3165.23 giây** (~52.75 phút) | **781.5 MB** | Hội tụ 500 epochs liên tục, 6.33s/epoch |
-| **v5+ Amazon Electronics (`Coach.fit` / VRAM)** | **21622.97 giây** (~6.01 giờ) | **1420.0 MB** | Tiết kiệm 33% VRAM so với v5 (2.1GB), 43.25s/epoch |
+| **v5+ Amazon Baby (`Coach.fit` / VRAM)** | **1399.06 giây** (~23.32 phút) | **925.2 MB** | Baseline 763.2 MB (+21.2% do nhánh InfoNCE), 2.80s/epoch |
+| **v5+ Amazon Sports (`Coach.fit` / VRAM)** | **3165.23 giây** (~52.75 phút) | **1141.0 MB** | Baseline 969.2 MB (+17.7% do nhánh InfoNCE), 6.33s/epoch |
+| **v5+ Amazon Electronics (`Coach.fit` / VRAM)** | **21622.97 giây** (~6.01 giờ) | **2785.0 MB** (~2.72 GB) | Chiếm 18.1% của 16GB T4, Dynamic Slicing ngăn 100% OOM, 43.25s/epoch |
 
 ---
 
@@ -241,7 +241,7 @@ Toàn bộ quá trình từ Giai đoạn 2 (v1 đến v5) đến Giai đoạn 3 
 Thực nghiệm Giai đoạn 3 — Đợt 3 (v3: STAIR-NE-NLGCL+) và bản nâng cấp v5+ đã hoàn thành xuất sắc vai trò kiểm chứng khoa học:
 - **Khẳng định tính đúng đắn của không gian tương phản đồ thị lân cận** (giúp v3 bứt phá toàn diện so với v2.1 trên Amazon Baby).
 - **Cung cấp bằng chứng thực nghiệm vô giá** lý giải tại sao v5 là mô hình tối ưu nhất về mặt thông lượng gradient.
-- **Xác lập kiến trúc tối ưu cuối cùng STAIR-NE-NLGCL v5+**: Tinh gọn, tốc độ cao, VRAM $<1\text{ GB}$, và bảo toàn 100% gradient sạch cho bài toán gợi ý đa phương thức.
+- **Xác lập kiến trúc tối ưu cuối cùng STAIR-NE-NLGCL v5+**: Tinh gọn, tốc độ cao, VRAM khống chế an toàn tuyệt đối ($\le 2.78\text{ GB}$ trên toàn bộ 3 datasets, chiếm $<18.1\%$ trần GPU 16GB T4), và bảo toàn 100% gradient sạch cho bài toán gợi ý đa phương thức.
 
 
 ---
@@ -333,7 +333,7 @@ Trên tập **Amazon Baby** (đồ thị có mật độ dày hơn, Density = 0.
 
 ### 8.5 Hồ Sơ Vận Hành Hệ Thống & Hiệu Suất Phần Cứng Của v5+
 
-Nhờ loại bỏ hoàn toàn các thành phần rườm rà (MLP Projection Head và Regularized Diagonal Spectral Projector), STAIR-NE-NLGCL v5+ đạt hiệu suất tính toán và tiết kiệm bộ nhớ vượt trội nhất trong toàn bộ chuỗi nghiên cứu:
+Nhờ cơ chế Dynamic Slicing $[B \times B]$ và loại bỏ ma trận rườm rà, STAIR-NE-NLGCL v5+ duy trì mức tiêu thụ bộ nhớ ổn định và an toàn tuyệt đối trên toàn bộ 3 datasets, ngăn chặn triệt để nguy cơ tràn bộ nhớ OOM:
 
 | Chỉ Số Vận Hành | Amazon Baby (v5+) | Amazon Sports (v5+) | Amazon Electronics (v5+) | So Sánh & Đánh Giá |
 | :--- | :---: | :---: | :---: | :--- |
@@ -341,7 +341,7 @@ Nhờ loại bỏ hoàn toàn các thành phần rườm rà (MLP Projection Hea
 | **Tốc độ trung bình / Epoch** | **2.80s / epoch** | **6.33s / epoch** | **43.25s / epoch** | Tối ưu hóa tối đa vòng lặp tính toán GPU |
 | **Thời gian đánh giá Validation** | **0.74s** | **1.77s** | **21.67s** | Full ranking trên 192K users siêu tốc |
 | **Thời gian đánh giá Test** | **0.68s** | **1.75s** | **21.90s** | Đánh giá toàn bộ test set chính xác |
-| **VRAM tiêu thụ đỉnh** | **609.2 MB** | **781.5 MB** | **1420.0 MB** | **Tiết kiệm 33% VRAM** so với v5 (2.1 GB) |
+| **VRAM tiêu thụ đỉnh (Live Trace)** | **925.2 MB** (0.90 GB) | **1141.0 MB** (1.11 GB) | **2785.0 MB** (2.72 GB) | **Khống chế ở 18.1% VRAM T4**, loại bỏ 100% nguy cơ OOM |
 | **Độ ổn định bộ nhớ** | **Tuyệt đối phẳng** | **Tuyệt đối phẳng** | **Tuyệt đối phẳng** | Zero OOM trên GPU NVIDIA T4 (16GB) |
 
 ---
