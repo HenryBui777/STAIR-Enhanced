@@ -145,7 +145,7 @@
     * Recall@10: `0.0457` (**+3.86%** vs BL) | Recall@20: `0.0680` (**+2.56%** vs BL).
     * NDCG@10: `0.0257` (**+4.90%** vs BL) | NDCG@20: `0.0314` (**+3.97%** vs BL).
   * **Amazon Sports (Đồ thị siêu thưa 99.95%):** Recall@20 đạt đỉnh lịch sử **`0.1118`** (vượt baseline `0.1111`), NDCG@20 đạt **`0.0508`** (**+1.60%**).
-  * **Tiết kiệm tài nguyên:** VRAM đỉnh giảm **33%** (từ 2100 MB xuống 1420 MB trên Electronics) nhờ loại bỏ MLP Head và dùng Dynamic Slicing.
+  * **Tiết kiệm tài nguyên:** VRAM đỉnh trên Electronics giảm xuống **1420 MB** (giảm **29.4%** so với STAIR Baseline thực tế 2011.2 MB; giảm **32.4% $\approx$ 33%** so với bản tiền nhiệm GĐ2 2100 MB) nhờ loại bỏ MLP Head và dùng Dynamic Slicing.
 
 ---
 
@@ -159,7 +159,7 @@
 > Ba là, thay thế hàng đợi FIFO bằng cơ chế cắt lát động trong batch (Dynamic Slicing) kết hợp ngưỡng lọc cứng 0.85, loại sạch các sản phẩm tương đồng thật và giảm 96% bộ nhớ tính toán. Đi kèm là hệ số phạt tuyến tính Linear HANS $\gamma_h = 0.15$ cực kỳ êm ái, không làm méo mó nhiệt độ $\tau=0.20$.
 > Và bốn là, duy trì lực đẩy tương phản hằng số $\lambda = 0.010$ liên tục suốt 500 epochs thay vì giảm dần về 0.
 >
-> Kết quả thực nghiệm mang lại niềm vui rất lớn cho nhóm thưa Cô: Trên tập dữ liệu khổng lồ Electronics với 1.7 triệu tương tác, v3 đã phá vỡ toàn bộ các kỷ lục trước đây, tăng trưởng ngoạn mục ở cả 4 chỉ số, đặc biệt NDCG@10 tăng vọt +4.90% và NDCG@20 tăng +3.97%. Trên tập Sports siêu thưa, v3 thiết lập kỷ lục Recall@20 cao nhất đề tài đạt 0.1118. Hơn nữa, mức tiêu thụ VRAM đỉnh giảm hẳn 33%, chạy cực kỳ mượt mà trên GPU phổ thông ạ."*
+> Kết quả thực nghiệm mang lại niềm vui rất lớn cho nhóm thưa Cô: Trên tập dữ liệu khổng lồ Electronics với 1.7 triệu tương tác, v3 đã phá vỡ toàn bộ các kỷ lục trước đây, tăng trưởng ngoạn mục ở cả 4 chỉ số, đặc biệt NDCG@10 tăng vọt +4.90% và NDCG@20 tăng +3.97%. Trên tập Sports siêu thưa, v3 thiết lập kỷ lục Recall@20 cao nhất đề tài đạt 0.1118. Hơn nữa, mức tiêu thụ VRAM đỉnh giảm rất ấn tượng: trên Electronics chỉ còn 1420 MB, giảm gần 30% so với baseline thực nghiệm (2011 MB) và giảm 33% so với bản tiền nhiệm Giai đoạn 2, chạy cực kỳ mượt mà trên GPU phổ thông ạ."*
 
 ---
 
@@ -169,6 +169,12 @@
 
 * **Câu hỏi 2:** *"Tại sao nhóm lại giữ nguyên lambda = 0.010 suốt quá trình huấn luyện mà không cho nó suy giảm (Cosine decay) về cuối?"*
 * **Trả lời:** *"Dạ thưa Cô, các nghiên cứu trước đây thường cho $\lambda$ suy giảm dần về 0 ở các epoch cuối vì nghĩ rằng cần nhường chỗ cho BPR tinh chỉnh. Tuy nhiên, trên đồ thị tương tác, các tầng tích chập lặp lại liên tục luôn có xu hướng kéo các vector embedding về gần nhau (hiện tượng over-smoothing). Nếu chúng ta triệt tiêu lực đẩy tương phản $\lambda \to 0$, mô hình sẽ lập tức bị kéo sụp vào các cụm hẹp ở các epoch cuối. Việc giữ vững $\lambda = 0.010$ (sau 50 epoch warmup ban đầu) đóng vai trò như một lực đẩy áp suất không đổi, bảo vệ không gian embedding luôn căng rộng và duy trì tính phân biệt cho đến tận epoch 500 ạ."*
+
+* **Câu hỏi 3:** *"Mức tiêu thụ VRAM của bản v3 so với STAIR gốc như thế nào, và con số giảm 33% là so với cái gì?"*
+* **Trả lời:** *"Dạ thưa Cô:
+  1. Trên tập Electronics, STAIR Baseline gốc chạy thực nghiệm trên GPU Tesla T4 của nhóm tiêu thụ đỉnh là **2011.2 MB** (số liệu công bố trong bài báo gốc là 1738 MB). Trong khi đó, phiên bản v3 nhờ gạt bỏ hoàn toàn Projection Head và cắt lát tương đồng động trực tiếp trong mini-batch $[B \times B]$ chỉ tiêu thụ đỉnh **1420.0 MB**. Như vậy, so với chính STAIR Baseline thực nghiệm (2011.2 MB), v3 giảm tới **29.4% VRAM** (gần 30%), tiết kiệm gần 600 MB bộ nhớ GPU.
+  2. Còn con số giảm **33%** (chính xác là 32.4%) là mức giảm khi đối sánh v3 với phiên bản tiền nhiệm ở Giai đoạn 2: mô hình STAIR-NE-NLGCL ở Giai đoạn 2 khi đó còn dùng mạng MLP trung gian nên ngốn tới **2100 MB** VRAM trên Electronics. Việc cải tiến sang v3 đã tiết kiệm được $(2100 - 1420)/2100 = 32.4\% \approx 33\%$.
+  3. Trên hai tập còn lại, v3 cũng đều nhẹ hơn STAIR gốc thực nghiệm: Baby đạt 609.2 MB (so với gốc 763.2 MB, giảm 20.2%), Sports đạt 781.5 MB (so với gốc 969.2 MB, giảm 19.4%) ạ."*
 
 ---
 
