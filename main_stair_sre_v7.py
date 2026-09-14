@@ -542,20 +542,36 @@ def main():
                     print(f"[DataSet] >>> Auto-bridged copied: {cand} -> {processed_dir}")
                 break
 
-    # Robust dataset loading: freerec.data.datasets contains a submodule named 'tiktok',
-    # so getattr(...) returns a module rather than a class when cfg.dataset == 'tiktok'.
+    # Robust dataset loading:
+    tasktag = getattr(cfg, 'tasktag', None) or getattr(freerec.data.tags, 'MATCHING', None)
+    if hasattr(freerec.data.datasets, 'RecDataSet'):
+        freerec.data.datasets.RecDataSet.TASK = tasktag
+    if hasattr(freerec.data.datasets, 'base') and hasattr(freerec.data.datasets.base, 'BaseSet'):
+        freerec.data.datasets.base.BaseSet.TASK = tasktag
+
     ds_cls = getattr(freerec.data.datasets, cfg.dataset, None)
     if isinstance(ds_cls, type):
         try:
             dataset = ds_cls(root=cfg.root)
         except Exception:
-            dataset = freerec.data.datasets.RecDataSet(
-                cfg.root, cfg.dataset, tasktag=getattr(cfg, "tasktag", None)
-            )
+            try:
+                from freerec.data.datasets.base import MatchingRecDataSet
+                dataset = MatchingRecDataSet(cfg.root, cfg.dataset, tasktag=tasktag)
+            except Exception:
+                dataset = freerec.data.datasets.RecDataSet(
+                    cfg.root, cfg.dataset, tasktag=tasktag
+                )
     else:
-        dataset = freerec.data.datasets.RecDataSet(
-            cfg.root, cfg.dataset, tasktag=getattr(cfg, "tasktag", None)
-        )
+        try:
+            from freerec.data.datasets.base import MatchingRecDataSet
+            dataset = MatchingRecDataSet(cfg.root, cfg.dataset, tasktag=tasktag)
+        except Exception:
+            dataset = freerec.data.datasets.RecDataSet(
+                cfg.root, cfg.dataset, tasktag=tasktag
+            )
+
+    if not hasattr(dataset, 'TASK') or dataset.TASK is None:
+        dataset.TASK = tasktag
 
     model = STAIR_SRE_Model(dataset)
 
