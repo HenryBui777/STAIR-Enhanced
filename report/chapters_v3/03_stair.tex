@@ -1,5 +1,156 @@
 \section{STAIR: Manipulating Collaborative and Multimodal Information}
 
+\subsection{Kết quả tái lập thực nghiệm trên bộ dataset TikTok}
+\label{sec:stair_reproduction_tiktok}
+
+\subsubsection{Động lực và bối cảnh mở rộng sang kịch bản video ngắn (Micro-video)}
+
+Bên cạnh ba tập dữ liệu thương mại điện tử chuẩn thức (Amazon Baby, Sports, Electronics) với hành vi mua sắm chủ động dựa trên hình ảnh tĩnh và mô tả sản phẩm văn bản, nhóm nghiên cứu nhận thấy sự cần thiết phải kiểm chứng khả năng tổng quát hóa của kiến trúc STAIR~\cite{xu2025stair} trên một miền ứng dụng hoàn toàn mới: \textbf{hệ thống gợi ý video ngắn đa phương thức (Multimodal Micro-video Recommendation)}.
+
+Để thực hiện mục tiêu này, nhóm tích hợp và mở rộng thực nghiệm trên bộ dữ liệu \textbf{TikTok} (được sử dụng phổ biến trong các công trình nghiên cứu gần đây như DiffMM và chuẩn đối sánh MMRec benchmark). Bộ dữ liệu TikTok mang những đặc thù bản chất khác biệt sâu sắc so với miền thương mại điện tử:
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Độ thưa tương tác cực cao:} Không gian tương tác giữa người dùng và video có độ thưa lên đến $99.89\%$ (mật độ ma trận chỉ $0.11\%$, tức tỷ lệ tương tác $\approx 0.0011$). Với $9.308$ người dùng, $6.710$ micro-video và tổng cộng $68.722$ lượt tương tác, trung bình mỗi người dùng chỉ tương tác với $7.38$ video trong toàn bộ lịch sử. Mật độ này thưa hơn đáng kể so với Amazon Baby ($0.29\%$), tạo thành thách thức lớn đối với việc chỉ dựa vào tín hiệu cộng tác thuần túy.
+    \item \textbf{Bản chất giàu tính đa phương tiện động (Tri-modal):} Thay vì chỉ dừng lại ở hai phương thức tĩnh (Text và Image) như các tập Amazon, mỗi video ngắn trên TikTok chứa đồng thời ba luồng thông tin đa giác quan phối hợp chặt chẽ:
+    \begin{itemize}
+        \item \textit{Thị giác (Visual modality):} Vector đặc trưng $128$ chiều trích xuất từ chuỗi khung hình video động (video frames) thông qua mạng nơ-ron tích chập và Vision Transformer.
+        \item \textit{Văn bản (Textual modality):} Vector đặc trưng $768$ chiều trích xuất từ tiêu đề video, mô tả nội dung và các thẻ hashtags thông qua mô hình ngôn ngữ Sentence-BERT.
+        \item \textit{Âm thanh (Audio modality):} Vector đặc trưng $128$ chiều trích xuất từ đoạn nhạc nền và âm thanh của micro-video qua kiến trúc VGGish.
+    \end{itemize}
+    \item \textbf{Kịch bản gợi ý dựa trên nội dung (Content-driven):} Khác với hành vi tìm kiếm chủ đích khi mua hàng, người dùng TikTok lướt video theo cơ chế thụ động (passive consumption). Sự đồng điệu về mặt nghe nhìn (thị giác, giai điệu âm thanh và thông điệp văn bản) đóng vai trò quyết định trong việc thu hút sự chú ý, đòi hỏi mô hình phải có năng lực biểu diễn và làm mịn đặc trưng đa phương thức vượt trội.
+\end{itemize}
+
+\subsubsection{Thiết lập thực nghiệm và cấu hình siêu tham số chuẩn tắc}
+
+Quá trình huấn luyện tái lập STAIR Baseline trên tập TikTok được thực hiện tự động và đồng bộ thông qua tệp cấu hình chuẩn \texttt{configs/tiktok\_MMRec.yaml}. Các tham số và môi trường huấn luyện được xác lập nghiêm ngặt:
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Phân chia dữ liệu:} Tập dữ liệu được phân chia thành $59.541$ tương tác huấn luyện (Train), $3.051$ tương tác kiểm định (Valid) và $6.130$ tương tác kiểm thử (Test).
+    \item \textbf{Đồ thị $k$-NN đa phương thức tam phân (Tri-modal $k$-NN Graph):} Phân bổ đều $3$ láng giềng gần nhất cho mỗi phương thức (\texttt{num\_neighbors: '3-3-3'}), tức $k_{\text{vis}} = 3$, $k_{\text{text}} = 3$, $k_{\text{audio}} = 3$. Ma trận kề tổng hợp $mAdj$ tiếp nhận các cạnh liên kết tương đồng từ cả ba phương thức và được chuẩn hóa đối xứng Symmetric Laplacian ($\tilde{S} = D^{-1/2} W_{\text{sym}} D^{-1/2}$).
+    \item \textbf{Tham số suy giảm phổ FSC ($\gamma = 0.05$):} Trong khi các tập Amazon sử dụng $\gamma = 0.10$, việc đặt $\gamma = 0.05$ trên TikTok là điều chỉnh quan trọng phù hợp với kịch bản video ngắn. Do các phương thức động (thị giác, âm thanh) phân bổ năng lượng trên dải tần số rộng hơn, giá trị $\gamma$ nhỏ hơn giúp giảm độ dốc của hàm lũy thừa $\beta$, bảo tồn lượng lớn thông tin đa phương thức hữu ích ở các dải tần trung và cao trong toán tử lan truyền Forward Stepwise Convolution.
+    \item \textbf{Không gian biểu diễn và Tối ưu hóa:} Chiều ẩn embedding $D = 64$, số tầng tích chập $L = 3$, kích thước batch $1024$. Mô hình sử dụng hàm mất mát BPR Loss nguyên bản kết hợp bộ tối ưu hóa AdamWSEvo ($lr = 10^{-3}$, weight decay $= 0.1$, $\beta_1 = 0.9, \beta_2 = 0.999$).
+    \item \textbf{Quy trình đánh giá và Lựa chọn Checkpoint:} Quá trình huấn luyện diễn ra trong 500 epochs, tần suất kiểm định được thực hiện định kỳ mỗi 5 epochs (\texttt{eval\_freq: 5}). Checkpoint tốt nhất của mô hình được xác định dựa trên giá trị \textbf{NDCG@20 cao nhất trên tập Validation} (\texttt{which4best: NDCG@20}). Sau khi hoàn tất 500 epochs, mô hình tự động tải lại checkpoint tối ưu này để tiến hành đánh giá toàn diện trên tập Test theo các chỉ số: Recall@1, Recall@10, Recall@20, NDCG@10 và NDCG@20.
+\end{itemize}
+
+\subsubsection{Kết quả tái lập chi tiết tại Checkpoint tối ưu và tiến trình hội tụ}
+
+Từ tệp nhật ký thực nghiệm chính thức (\texttt{logs/paper/tiktok.log}), STAIR Baseline đạt đỉnh hiệu năng kiểm định tại \textbf{Epoch 220} với giá trị NDCG@20 đạt $0.0356$ (tăng mạnh từ $0.0089$ tại Epoch khởi đầu). Bảng~\ref{tab:tiktok_reproduction} trình bày chi tiết kết quả đo đạc trên cả hai tập Validation và Test tại Checkpoint tối ưu (Epoch 220), so sánh đối chiếu với trạng thái khởi tạo ngẫu nhiên (Epoch 0) và trạng thái kết thúc (Epoch 500).
+
+% ==============================================================================
+% BẢNG KẾT QUẢ TÁI LẬP TIKTOK
+% ==============================================================================
+\begingroup
+\footnotesize
+\setlength{\tabcolsep}{6pt}
+\renewcommand{\arraystretch}{1.2}
+\begin{longtable}{%
+>{\raggedright\arraybackslash}p{2.6cm}
+>{\raggedright\arraybackslash}p{2.2cm}
+*{5}{>{\centering\arraybackslash}p{1.7cm}}}
+
+\caption{Kết quả tái lập STAIR Baseline trên tập dữ liệu TikTok tại các mốc huấn luyện.}
+\label{tab:tiktok_reproduction} \\
+\toprule
+\rowcolor{gray!15}\textbf{Tập dữ liệu} & \textbf{Mốc đánh giá} & \textbf{Recall@1} & \textbf{Recall@10} & \textbf{Recall@20} & \textbf{NDCG@10} & \textbf{NDCG@20} \\
+\midrule
+\endfirsthead
+
+\multicolumn{7}{c}{{\bfseries Bảng \thetable\ (tiếp theo)}} \\
+\toprule
+\rowcolor{gray!15}\textbf{Tập dữ liệu} & \textbf{Mốc đánh giá} & \textbf{Recall@1} & \textbf{Recall@10} & \textbf{Recall@20} & \textbf{NDCG@10} & \textbf{NDCG@20} \\
+\midrule
+\endhead
+
+\midrule
+\multicolumn{7}{r}{\textit{Tiếp tục ở trang sau...}} \\
+\endfoot
+
+\bottomrule
+\endlastfoot
+
+\textbf{TikTok} & Valid (Epoch 0) & 0.0026 & 0.0141 & 0.0197 & 0.0075 & 0.0089 \\
+(Tri-modal) & Valid (Epoch 500) & 0.0111 & 0.0492 & 0.0718 & 0.0280 & 0.0336 \\
+& \textbf{Valid (Best @Ep 220)} & \textbf{0.0141} & \textbf{0.0524} & \textbf{0.0744} & \textbf{0.0301} & \textbf{0.0356} \\
+\cmidrule{2-7}
+& Test (Epoch 500) & 0.0104 & 0.0460 & 0.0731 & 0.0248 & 0.0316 \\
+& \textbf{Test (Best @Ep 220)} & \textbf{0.0098} & \textbf{0.0558} & \textbf{0.0799} & \textbf{0.0292} & \textbf{0.0352} \\
+\end{longtable}
+\endgroup
+
+Để làm rõ động thái học biểu diễn và tốc độ hội tụ của STAIR Baseline trên đồ thị video ngắn, Bảng~\ref{tab:tiktok_trajectory} ghi nhận tiến trình huấn luyện qua các mốc thời gian quan trọng (Epochs 0, 5, 20, 50, 100, 150, 200, 220, 300, 400, 500) cùng với giá trị hàm mất mát BPR Training Loss.
+
+% ==============================================================================
+% BẢNG TIẾN TRÌNH HUẤN LUYỆN (TRAJECTORY)
+% ==============================================================================
+\begingroup
+\footnotesize
+\setlength{\tabcolsep}{4.5pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{longtable}{%
+>{\centering\arraybackslash}p{1.4cm}
+>{\centering\arraybackslash}p{1.7cm}
+*{4}{>{\centering\arraybackslash}p{1.8cm}}
+>{\raggedright\arraybackslash}p{3.2cm}}
+
+\caption{Tiến trình hội tụ của STAIR Baseline trên tập dữ liệu TikTok (500 Epochs).}
+\label{tab:tiktok_trajectory} \\
+\toprule
+\rowcolor{gray!15}\textbf{Epoch} & \textbf{BPR Loss} & \textbf{Val R@10} & \textbf{Val R@20} & \textbf{Val N@10} & \textbf{Val N@20} & \textbf{Ghi chú tiến trình} \\
+\midrule
+\endfirsthead
+
+\multicolumn{7}{c}{{\bfseries Bảng \thetable\ (tiếp theo)}} \\
+\toprule
+\rowcolor{gray!15}\textbf{Epoch} & \textbf{BPR Loss} & \textbf{Val R@10} & \textbf{Val R@20} & \textbf{Val N@10} & \textbf{Val N@20} & \textbf{Ghi chú tiến trình} \\
+\midrule
+\endhead
+
+\midrule
+\multicolumn{7}{r}{\textit{Tiếp tục ở trang sau...}} \\
+\endfoot
+
+\bottomrule
+\endlastfoot
+
+0 & --- & 0.0141 & 0.0197 & 0.0075 & 0.0089 & Khởi tạo SVD Whitening \\
+5 & 0.5765 & 0.0374 & 0.0623 & 0.0184 & 0.0246 & Học cấu trúc lân cận ban đầu \\
+20 & 0.2932 & 0.0433 & 0.0698 & 0.0211 & 0.0277 & Giảm mạnh Loss, tăng tốc xếp hạng \\
+50 & 0.1669 & 0.0452 & 0.0675 & 0.0226 & 0.0282 & Ổn định gradient BSC Smoother \\
+100 & 0.0910 & 0.0479 & 0.0754 & 0.0259 & 0.0328 & Lan truyền thông tin đa phương thức \\
+150 & 0.0608 & 0.0501 & 0.0764 & 0.0276 & 0.0342 & Tinh chỉnh không gian biểu diễn \\
+200 & 0.0440 & 0.0508 & 0.0747 & 0.0288 & 0.0349 & Tiệm cận vùng cực trị tối ưu \\
+\rowcolor{yellow!15}\textbf{220} & \textbf{0.0404} & \textbf{0.0524} & \textbf{0.0744} & \textbf{0.0301} & \textbf{0.0356} & \textbf{Checkpoint tối ưu (Test N@20: 0.0352)} \\
+250 & 0.0357 & 0.0511 & 0.0731 & 0.0293 & 0.0349 & Bắt đầu xuất hiện bão hòa phổ \\
+300 & 0.0293 & 0.0501 & 0.0734 & 0.0288 & 0.0347 & Dao động nhẹ quanh cực tiểu \\
+400 & 0.0229 & 0.0511 & 0.0718 & 0.0289 & 0.0340 & Suy giảm do over-smoothing \\
+500 & 0.0194 & 0.0492 & 0.0718 & 0.0280 & 0.0336 & Kết thúc 500 epochs \\
+\end{longtable}
+\endgroup
+
+\subsubsection{Phân tích hiện tượng Over-smoothing và Hiệu năng tài nguyên tính toán}
+
+Dựa trên dữ liệu thực nghiệm tại Bảng~\ref{tab:tiktok_reproduction} và Bảng~\ref{tab:tiktok_trajectory}, nhóm nghiên cứu rút ra ba nhận xét kỹ thuật then chốt:
+
+\noindent\textcolor{lightblue}{\textbf{1. Động lực học hội tụ và Hiện tượng Over-smoothing trên đồ thị video ngắn.}}
+Quá trình huấn luyện trên tập TikTok bộc lộ sự phân tách rõ rệt thành hai giai đoạn:
+\begin{itemize}[leftmargin=*]
+    \item \textit{Giai đoạn tăng trưởng mạnh (Epoch 0 $\to$ 220):} Hàm mất mát BPR giảm nhanh từ $0.6627$ xuống $0.0404$, trong khi chỉ số xếp hạng NDCG@20 trên tập Validation tăng liên tục và đạt đỉnh $0.0356$ (Test Recall@20 đạt $0.0799$, Test NDCG@20 đạt $0.0352$). Sự kết hợp giữa bộ làm mịn phổ BSC và đồ thị kề tam giác (Vision-Text-Audio) giúp mô hình nhanh chóng học được không gian biểu diễn sở thích của người dùng đối với các thuộc tính đa phương tiện.
+    \item \textit{Giai đoạn suy thoái nhẹ do quá khớp phổ (Epoch 221 $\to$ 500):} Mặc dù BPR Loss tiếp tục giảm từ $0.0404$ xuống $0.0194$, nhưng hiệu năng xếp hạng trên tập Test bị sụt giảm (Test NDCG@20 giảm từ $0.0352$ xuống $0.0316$, tức giảm $-10.2\%$; Test Recall@20 giảm từ $0.0799$ xuống $0.0731$). Hiện tượng này xảy ra do quá trình lan truyền lặp qua nhiều tầng tích chập trên đồ thị thưa trong thời gian dài khiến các vector biểu diễn bị dồn nén quá mức vào không gian con tần số thấp (spectral over-smoothing), làm mờ nhạt tính phân biệt giữa các video ngắn. Kết quả này chứng minh cơ chế giám sát \texttt{which4best: NDCG@20} là phòng tuyến bắt buộc để thu được mô hình tối ưu.
+\end{itemize}
+
+\noindent\textcolor{lightblue}{\textbf{2. Hiệu năng tính toán và Mức tiêu thụ phần cứng vượt trội.}}
+Nhật ký thực nghiệm ghi nhận hiệu năng tài nguyên ấn tượng của STAIR Baseline trên tập TikTok:
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Thời gian huấn luyện:} Toàn bộ 500 epochs chỉ mất tổng cộng $544.6$ giây ($\approx 9.08$ phút) trên một GPU NVIDIA Tesla T4 duy nhất. Tốc độ trung bình đạt xấp xỉ $1.08$ giây/epoch.
+    \item \textbf{Mức tiêu thụ VRAM:} Dung lượng bộ nhớ đồ họa chỉ chiếm xấp xỉ $783$\,MB. Việc tiền tính toán ma trận Laplacian đa phương thức $mAdj$ dạng sparse CSR và khởi tạo SVD Whitening ngay từ đầu giúp mô hình hoàn toàn không phát sinh chi phí tính toán ma trận dày đặc (dense overhead) trong suốt quá trình huấn luyện online.
+    \item So với các mô hình Diffusion đa phương thức trên cùng tập TikTok (đòi hỏi hàng giờ huấn luyện và lượng VRAM vượt $6$\,GB do quá trình khử nhiễu lặp nhiều bước), STAIR Baseline chứng minh ưu thế vượt bậc về tính tinh gọn và khả năng triển khai thực tế.
+\end{itemize}
+
+\noindent\textcolor{lightblue}{\textbf{3. Thiết lập mốc chuẩn quy chiếu (Ground Truth Baseline) cho các cải tiến tiếp theo.}}
+Kết quả thực nghiệm tại Epoch 220 chính thức xác lập bộ số liệu đối chuẩn nền tảng của STAIR Baseline trên tập TikTok:
+\begin{center}
+\fbox{\bfseries Recall@10 = 0.0558 \quad | \quad Recall@20 = 0.0799 \quad | \quad NDCG@10 = 0.0292 \quad | \quad NDCG@20 = 0.0352}
+\end{center}
+Đây sẽ là mốc so sánh tiêu chuẩn để nhóm nghiên cứu đối chiếu mức độ bứt phá của phiên bản cải tiến \textbf{STAIR-v5 (STAIR-BSC-Reweight)} khi áp dụng cơ chế tăng cường đồng thuận an toàn ba phương thức (Tri-modal Safe Consensus Boosting) trên đồ thị video ngắn.
+
 \subsection{Kết quả thực nghiệm cải tiến 1: Stepwise Spectral-Refined Contrastive Learning (STAIR-SRE)}
 \label{sec:stair_sre}
 

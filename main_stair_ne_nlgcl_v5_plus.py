@@ -237,11 +237,19 @@ class STAIR_NE_NLGCL_v5_Plus_Model(freerec.models.GenRecArch):
         return params
 
     def whitening(self, feats: torch.Tensor):
+        if not isinstance(feats, torch.Tensor):
+            feats = torch.tensor(feats, dtype=torch.float32)
+        else:
+            feats = feats.float()
         feats = feats - feats.mean(0, keepdim=True)
         feats, _, _ = torch.linalg.svd(feats, full_matrices=False)
         return feats[:, :cfg.embedding_dim] * math.sqrt(self.Item.count / cfg.embedding_dim)
 
     def get_knn_graph(self, features: torch.Tensor, k: int = 5):
+        if not isinstance(features, torch.Tensor):
+            features = torch.tensor(features, dtype=torch.float32)
+        else:
+            features = features.float()
         features = F.normalize(features, dim=-1)
         sim = features @ features.t()
         sim.fill_diagonal_(-10.)
@@ -253,10 +261,23 @@ class STAIR_NE_NLGCL_v5_Plus_Model(freerec.models.GenRecArch):
     def prepare(self, path: str):
         from freerec.utils import import_pickle
 
-        mfeats = [
-            import_pickle(os.path.join(path, mfile))
-            for mfile in cfg.mfiles
-        ]
+        mfeats = []
+        for mfile in cfg.mfiles:
+            mpath = os.path.join(path, mfile)
+            if not os.path.exists(mpath):
+                for cand in [
+                    os.path.join(cfg.root, cfg.dataset, mfile),
+                    os.path.join("/kaggle/data", cfg.dataset, mfile),
+                    os.path.join("/kaggle/data/Processed", cfg.dataset, mfile),
+                    os.path.join("/kaggle/working/STAIR/data", cfg.dataset, mfile),
+                    os.path.join("/kaggle/working/STAIR-Enhanced/data", cfg.dataset, mfile),
+                    os.path.join("data", cfg.dataset, mfile),
+                    os.path.join("data/Processed", cfg.dataset, mfile),
+                ]:
+                    if os.path.exists(cand):
+                        mpath = cand
+                        break
+            mfeats.append(import_pickle(mpath))
 
         edge_index = torch.cat(
             [self.get_knn_graph(feats, k)
