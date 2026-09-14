@@ -580,7 +580,20 @@ def main():
         model=model,
         cfg=cfg,
     )
+
+    if torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats()
+
     coach.fit()
+
+    if torch.cuda.is_available():
+        max_alloc_mb = torch.cuda.max_memory_allocated() / (1024 ** 2)
+        max_res_mb   = torch.cuda.max_memory_reserved() / (1024 ** 2)
+        print("=" * 80)
+        print("[VRAM TELEMETRY — PYTORCH ALLOCATOR (AUTHOR PAPER METHOD)]")
+        print(f"  * Pure Tensor Peak (max_memory_allocated) : {max_alloc_mb:.2f} MB")
+        print(f"  * Peak Reserved Memory (max_memory_reserved): {max_res_mb:.2f} MB")
+        print("=" * 80)
 
 
 if __name__ == '__main__':
