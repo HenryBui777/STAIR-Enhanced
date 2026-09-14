@@ -11,9 +11,10 @@ MuSICRec-3CEE/
 NEGCL/
 main_gd1/
 
-# Large legacy dataset
+# Large legacy dataset & processed auto-bridges
 data/Amazon2014Baby_550_MMRec/
 data/Amazon2014Baby_550_MMRec.zip
+data/Processed/
 
 # Python / Pytest cache
 __pycache__/

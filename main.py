@@ -280,10 +280,35 @@ class CoachForSTAIR(freerec.launcher.Coach):
 
 def main():
 
+    # Robust auto-bridge for FreeRec:
+    processed_dir = os.path.join(cfg.root, "Processed", cfg.dataset)
+    if not os.path.exists(processed_dir) or not os.listdir(processed_dir):
+        script_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in locals() else '.'
+        candidates = [
+            os.path.join(cfg.root, cfg.dataset),
+            os.path.join("/kaggle/data", cfg.dataset),
+            os.path.join("/kaggle/data/Processed", cfg.dataset),
+            os.path.join("/kaggle/working/STAIR/data", cfg.dataset),
+            os.path.join("/kaggle/working/STAIR-Enhanced/data", cfg.dataset),
+            os.path.join(script_dir, "data", cfg.dataset),
+            os.path.join("data", cfg.dataset),
+        ]
+        for cand in candidates:
+            if os.path.exists(cand) and os.path.isdir(cand) and os.path.abspath(cand) != os.path.abspath(processed_dir) and len(os.listdir(cand)) > 0:
+                os.makedirs(os.path.dirname(processed_dir), exist_ok=True)
+                try:
+                    os.symlink(cand, processed_dir)
+                    print(f"[DataSet] >>> Auto-bridged symlink: {cand} -> {processed_dir}")
+                except Exception:
+                    import shutil
+                    shutil.copytree(cand, processed_dir, dirs_exist_ok=True)
+                    print(f"[DataSet] >>> Auto-bridged copied: {cand} -> {processed_dir}")
+                break
+
     try:
         dataset = getattr(freerec.data.datasets, cfg.dataset)(root=cfg.root)
     except AttributeError:
-        dataset = freerec.data.datasets.RecDataSet(cfg.root, cfg.dataset, tasktag=cfg.tasktag)
+        dataset = freerec.data.datasets.RecDataSet(cfg.root, cfg.dataset, tasktag=getattr(cfg, 'tasktag', None))
 
     model = STAIR(dataset)
 
