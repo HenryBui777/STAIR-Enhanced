@@ -78,17 +78,19 @@ class STAIR_BSC_Reweight_Engine:
         col_np: np.ndarray,
         device: Optional[Union[torch.device, str]] = None,
         chunk_size: int = 32768,
+        all_modal_feats: Optional[List[torch.Tensor]] = None,
     ) -> torch.Tensor:
         """
         Tính toán điểm đồng thuận đa phương thức ngưỡng hóa (Thresholded Geometric Mean):
-          q_modal_ij = sqrt( relu(s_t - tau_t) * relu(s_v - tau_v) )
+          - 2 phương thức (Text, Vision): q_modal_ij = sqrt( relu(s_t - tau_t) * relu(s_v - tau_v) )
+          - Đa phương thức (>= 3 modalities như TikTok: Vision, Text, Audio):
+            q_modal_ij = mean_{p < q} sqrt( relu(s_p - tau_p) * relu(s_q - tau_q) )
 
         Tối ưu hóa:
           - Thực thi O(|E|) chunked vectorized trên CPU (Zero GPU VRAM overhead).
-          - Triệt tiêu 100% nguy cơ CUDA Out of Memory trên các tập dữ liệu quy mô lớn
-            (như Amazon Electronics: 63K items, 362K cạnh, visual features dim=4096).
+          - Triệt tiêu 100% nguy cơ CUDA Out of Memory trên các tập dữ liệu quy mô lớn.
           - Giới hạn peak memory RAM < 500 MB qua chunk_size.
-          - Chuyển đổi tensor kết quả q_modal (1D tensor O(|E|) ~1.4 MB) sang đúng target device.
+          - Chuyển đổi tensor kết quả q_modal (1D tensor O(|E|)) sang đúng target device.
         """
         if device is None:
             target_dev = text_feats.device
@@ -102,36 +104,62 @@ class STAIR_BSC_Reweight_Engine:
         col_t = torch.from_numpy(col_np).long()
 
         with torch.no_grad():
-            # 1. Chuẩn hóa L2 trên CPU để bảo vệ tuyệt đối VRAM GPU
-            t_norm = F.normalize(text_feats.cpu().float(), p=2, dim=-1)
-            v_norm = F.normalize(vis_feats.cpu().float(), p=2, dim=-1)
+            if all_modal_feats is not None and len(all_modal_feats) > 2:
+                # Đa phương thức (>= 3 phương thức như TikTok: Vision, Text, Audio)
+                feat_norms = [F.normalize(f.cpu().float(), p=2, dim=-1) for f in all_modal_feats]
+                sim_lists = [[] for _ in feat_norms]
 
-            sim_t_list = []
-            sim_v_list = []
+                for start in range(0, num_edges, chunk_size):
+                    end = min(start + chunk_size, num_edges)
+                    r_chunk = row_t[start:end]
+                    c_chunk = col_t[start:end]
+                    for idx, fn in enumerate(feat_norms):
+                        sim_lists[idx].append((fn[r_chunk] * fn[c_chunk]).sum(dim=-1))
 
-            # 2. Xử lý cosine similarity theo từng chunk để khống chế peak memory
-            for start in range(0, num_edges, chunk_size):
-                end = min(start + chunk_size, num_edges)
-                r_chunk = row_t[start:end]
-                c_chunk = col_t[start:end]
+                sim_tensors = [torch.cat(sim_lists[idx], dim=0) for idx in range(len(feat_norms))]
+                sims_thresh = [
+                    F.relu(sim_tensors[idx] - (self.tau_t if idx == 0 else self.tau_v))
+                    for idx in range(len(feat_norms))
+                ]
+                pair_consensuses = []
+                for p in range(len(feat_norms)):
+                    for q in range(p + 1, len(feat_norms)):
+                        pair_consensuses.append(torch.sqrt(sims_thresh[p] * sims_thresh[q] + self.eps))
+                q_modal = torch.stack(pair_consensuses, dim=0).mean(dim=0)
 
-                st = (t_norm[r_chunk] * t_norm[c_chunk]).sum(dim=-1)
-                sv = (v_norm[r_chunk] * v_norm[c_chunk]).sum(dim=-1)
+                del feat_norms, sim_lists, sim_tensors, sims_thresh, pair_consensuses, row_t, col_t
+                gc.collect()
+            else:
+                # 1. Chuẩn hóa L2 trên CPU để bảo vệ tuyệt đối VRAM GPU
+                t_norm = F.normalize(text_feats.cpu().float(), p=2, dim=-1)
+                v_norm = F.normalize(vis_feats.cpu().float(), p=2, dim=-1)
 
-                sim_t_list.append(st)
-                sim_v_list.append(sv)
+                sim_t_list = []
+                sim_v_list = []
 
-            sim_t = torch.cat(sim_t_list, dim=0)
-            sim_v = torch.cat(sim_v_list, dim=0)
+                # 2. Xử lý cosine similarity theo từng chunk để khống chế peak memory
+                for start in range(0, num_edges, chunk_size):
+                    end = min(start + chunk_size, num_edges)
+                    r_chunk = row_t[start:end]
+                    c_chunk = col_t[start:end]
 
-            # 3. Ngưỡng hóa đồng thuận Geometric Mean
-            s_t_thresh = F.relu(sim_t - self.tau_t)
-            s_v_thresh = F.relu(sim_v - self.tau_v)
-            q_modal = torch.sqrt(s_t_thresh * s_v_thresh + self.eps)
+                    st = (t_norm[r_chunk] * t_norm[c_chunk]).sum(dim=-1)
+                    sv = (v_norm[r_chunk] * v_norm[c_chunk]).sum(dim=-1)
 
-            # 4. Giải phóng bộ nhớ đệm CPU ngay lập tức
-            del t_norm, v_norm, sim_t_list, sim_v_list, sim_t, sim_v, s_t_thresh, s_v_thresh, row_t, col_t
-            gc.collect()
+                    sim_t_list.append(st)
+                    sim_v_list.append(sv)
+
+                sim_t = torch.cat(sim_t_list, dim=0)
+                sim_v = torch.cat(sim_v_list, dim=0)
+
+                # 3. Ngưỡng hóa đồng thuận Geometric Mean
+                s_t_thresh = F.relu(sim_t - self.tau_t)
+                s_v_thresh = F.relu(sim_v - self.tau_v)
+                q_modal = torch.sqrt(s_t_thresh * s_v_thresh + self.eps)
+
+                # 4. Giải phóng bộ nhớ đệm CPU ngay lập tức
+                del t_norm, v_norm, sim_t_list, sim_v_list, sim_t, sim_v, s_t_thresh, s_v_thresh, row_t, col_t
+                gc.collect()
 
         return q_modal.to(target_dev)
 
@@ -194,6 +222,7 @@ class STAIR_BSC_Reweight_Engine:
         raw_edge_weight: Optional[Union[torch.Tensor, np.ndarray]] = None,
         num_items: Optional[int] = None,
         target_device: Optional[Union[torch.device, str]] = None,
+        all_modal_feats: Optional[List[torch.Tensor]] = None,
     ) -> torch.Tensor:
         """
         Quy trình tiền xử lý hoàn chỉnh xây dựng ma trận BSC Smoother:
@@ -244,7 +273,9 @@ class STAIR_BSC_Reweight_Engine:
         if self.mode == "baseline":
             boost_factor = torch.tensor(1.0, dtype=torch.float32, device=device)
         elif self.mode == "modal_only":
-            q_modal = self.compute_modal_quality(text_feats, vis_feats, row_np, col_np, device=device)
+            q_modal = self.compute_modal_quality(
+                text_feats, vis_feats, row_np, col_np, device=device, all_modal_feats=all_modal_feats
+            )
             boost_factor = 1.0 + self.alpha * q_modal.to(device)
         elif self.mode == "behavior_only":
             q_behavior = self.compute_behavioral_quality(
@@ -252,7 +283,9 @@ class STAIR_BSC_Reweight_Engine:
             )
             boost_factor = 1.0 + self.beta * q_behavior.to(device)
         else:  # full_ssb
-            q_modal = self.compute_modal_quality(text_feats, vis_feats, row_np, col_np, device=device)
+            q_modal = self.compute_modal_quality(
+                text_feats, vis_feats, row_np, col_np, device=device, all_modal_feats=all_modal_feats
+            )
             q_behavior = self.compute_behavioral_quality(
                 train_user_item_matrix, row_np, col_np, num_items, device=device
             )

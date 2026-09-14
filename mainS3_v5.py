@@ -376,11 +376,38 @@ class STAIR_v5_Arch(freerec.models.GenRecArch):
         """
         from freerec.utils import import_pickle
 
-        # 1. Nạp modality features
-        mfeats = [
-            import_pickle(os.path.join(path, mfile))
-            for mfile in cfg.mfiles
-        ]
+        # 1. Nạp modality features (kèm tìm kiếm dự phòng đường dẫn)
+        mfeats = []
+        for mfile in cfg.mfiles:
+            mpath = os.path.join(path, mfile)
+            if not os.path.exists(mpath):
+                for cand in [
+                    os.path.join(cfg.root, cfg.dataset, mfile),
+                    os.path.join("/kaggle/data", cfg.dataset, mfile),
+                    os.path.join("/kaggle/data/Processed", cfg.dataset, mfile),
+                    os.path.join("/kaggle/working/STAIR/data", cfg.dataset, mfile),
+                    os.path.join("/kaggle/working/STAIR-Enhanced/data", cfg.dataset, mfile),
+                    os.path.join("data", cfg.dataset, mfile),
+                    os.path.join("data/Processed", cfg.dataset, mfile),
+                ]:
+                    if os.path.exists(cand):
+                        mpath = cand
+                        break
+            mfeats.append(import_pickle(mpath))
+
+        # Phân giải phương thức text và visual cho giao diện hàm build_boosted_mAdj
+        text_feat = None
+        vis_feat = None
+        for mf, feat in zip(cfg.mfiles, mfeats):
+            mf_lower = str(mf).lower()
+            if 'text' in mf_lower:
+                text_feat = feat
+            elif 'vis' in mf_lower or 'image' in mf_lower:
+                vis_feat = feat
+        if text_feat is None:
+            text_feat = mfeats[0]
+        if vis_feat is None:
+            vis_feat = mfeats[1] if len(mfeats) > 1 else mfeats[0]
 
         # 2. Xây dựng đồ thị kNN Baseline gốc
         print(f"[STAIR-v5] Đang xây dựng đồ thị kNN gốc: k_neighbors={cfg.num_neighbors}...")
@@ -428,13 +455,14 @@ class STAIR_v5_Arch(freerec.models.GenRecArch):
         )
 
         mAdj_boosted = engine.build_boosted_mAdj(
-            text_feats=mfeats[0],
-            vis_feats=mfeats[1],
+            text_feats=text_feat,
+            vis_feats=vis_feat,
             train_user_item_matrix=train_R,
             raw_knn_adj=raw_edge_index,
             raw_edge_weight=raw_edge_weight,
             num_items=num_items,
             target_device=cfg.device,
+            all_modal_feats=mfeats,
         )
 
         # Đăng ký mAdj buffer cho Smoother
