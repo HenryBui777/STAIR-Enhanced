@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import annotations
 """
 models/stair_sre_v5.py
 ========================================================================================
@@ -23,7 +24,7 @@ Thiết kế hoàn thiện theo chuẩn mực đại số tuyến tính và ki�
 import gc
 import math
 import logging
-from typing import Optional, Tuple, Union, Dict, Any
+from typing import Optional, Tuple, Union, Dict, Any, List
 
 import numpy as np
 import scipy.sparse as sp

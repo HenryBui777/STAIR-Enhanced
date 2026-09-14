@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import annotations
 """
 mainS3_v5.py — STAIR-BSC-Reweight (STAIR-v5) Official Training Pipeline
 ======================================================================
@@ -27,7 +28,7 @@ import os
 import sys
 import time
 import math
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, List, Union, Any
 
 # Fix Windows console utf-8 encoding
 if sys.platform == "win32":
