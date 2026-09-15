@@ -100,6 +100,24 @@ from optimizers.utils import Smoother
 
 from models.stair_ne_nlgcl_v5_plus import STAIR_NE_NLGCL_v5_Plus
 
+try:
+    from models.stair_breakthrough import (
+        STAIR_DAN_TANS_Module,
+        STAIR_DCD_Gated_Module,
+        STAIR_APPNP_CrossModal_Module,
+    )
+except ImportError:
+    try:
+        from stair_breakthrough import (
+            STAIR_DAN_TANS_Module,
+            STAIR_DCD_Gated_Module,
+            STAIR_APPNP_CrossModal_Module,
+        )
+    except ImportError:
+        STAIR_DAN_TANS_Module = None
+        STAIR_DCD_Gated_Module = None
+        STAIR_APPNP_CrossModal_Module = None
+
 freerec.declare(version='0.8.5')
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -108,8 +126,8 @@ freerec.declare(version='0.8.5')
 cfg = freerec.parser.Parser()
 
 # ── STAIR Baseline Parameters ──
-cfg.add_argument("--embedding-dim", type=int, default=64,
-                 help="Latent vector embedding dimension D (default: 64)")
+cfg.add_argument("--embedding-dim", type=int, default=256,
+                 help="Latent vector embedding dimension D (default: 256)")
 cfg.add_argument("--num-layers", type=int, default=3,
                  help="Number of layers for FSC/BSC (default: 3)")
 cfg.add_argument("--mfiles", type=str,
@@ -120,7 +138,10 @@ cfg.add_argument("--num-neighbors", type=str, default='5-1',
 cfg.add_argument("--gamma", type=float, default=0.2,
                  help="Spectral decay exponent for beta3 (default: 0.2)")
 
-# ── STAIR-NE-NLGCL v5+ Parameters ──
+# ── STAIR-NE-NLGCL v5+ & Breakthrough Parameters ──
+cfg.add_argument("--method", type=str, default="v5_plus",
+                 choices=["v5_plus", "dan_tans", "dcd_gated", "appnp_crossmodal"],
+                 help="Algorithm method: v5_plus, dan_tans, dcd_gated, appnp_crossmodal (default: v5_plus)")
 cfg.add_argument("--tau", type=float, default=0.20,
                  help="Temperature tau for InfoNCE softmax (default: 0.20)")
 cfg.add_argument("--alpha-dir", type=float, default=0.50,
@@ -135,6 +156,20 @@ cfg.add_argument("--gamma-h", type=float, default=0.15,
                  help="Linear HANS hardness penalty coefficient (default: 0.15)")
 cfg.add_argument("--warmup-epochs", type=int, default=50,
                  help="Warmup epochs for lambda (default: 50)")
+
+# ── LR Scheduler, Early Stopping & Checkpoint Selection ──
+cfg.add_argument("--lr-warmup-epochs", type=int, default=15,
+                 help="Warmup epochs for Learning Rate (default: 15)")
+cfg.add_argument("--min-lr", type=float, default=1e-6,
+                 help="Minimum LR after Cosine decay (default: 1e-6)")
+cfg.add_argument("--patience", type=int, default=30,
+                 help="Early stopping patience in epochs (default: 30)")
+cfg.add_argument("--use-composite-metric", type=bool, default=True,
+                 help="Select checkpoint via composite metric (R10+R20+N10+N20)/4")
+
+# ── Params riêng cho Hướng 3 (APPNP + CrossModal) ──
+cfg.add_argument("--alpha-restart", type=float, default=0.15, help="Hệ số teleport APPNP")
+cfg.add_argument("--lambda-cross", type=float, default=0.005, help="Trọng số cross-modal CL")
 
 cfg.set_defaults(
     description="STAIR-NE-NLGCL-v5-Plus",
@@ -161,18 +196,17 @@ cfg.beta3 = (
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# STAIR-NE-NLGCL v5+ (v3-Refined) Model Architecture
+# STAIR-NE-NLGCL v5+ (v3-Refined) & Breakthrough Architecture
 # ═════════════════════════════════════════════════════════════════════════════
 class STAIR_NE_NLGCL_v5_Plus_Model(freerec.models.GenRecArch):
     """
-    STAIR-NE-NLGCL v5+ (v3-Refined) Model Architecture:
+    STAIR-NE-NLGCL v5+ (v3-Refined) & Breakthrough Architectures:
     Combines STAIR Forward Stepwise Convolution with Clean Direct Contrastive Learning:
-    1. No Projection Head (100% Direct InfoNCE Gradient Flow to H^(0) and H^(1))
-    2. No Regularized Diagonal Projector (Zero optimization friction)
-    3. True Sign-Preserving Spectral Perturbation (|noise| >= 0)
-    4. Clean Linear HANS (psi = 1 + gamma_h * max(0, cos))
-    5. Hard-Threshold MFNA (mask = I(sim_modal <= 0.85))
-    6. Constant Lambda CL (0.010 with 50-epoch linear warmup)
+    Supports 4 methods:
+    1. 'v5_plus': Clean Baseline (100% Direct InfoNCE, Sign-Preserving Noise, Linear HANS, Hard MFNA)
+    2. 'dan_tans': Degree-Aware Noise & Topology-Aware Negative Scheduling
+    3. 'dcd_gated': Dual-Consensus Denoising with Dynamic Safety Gate
+    4. 'appnp_crossmodal': APPNP Alpha-Restart Convolution & Disentangled Cross-Modal CL
     """
 
     def __init__(self, dataset: freerec.data.datasets.RecDataSet) -> None:
@@ -196,18 +230,58 @@ class STAIR_NE_NLGCL_v5_Plus_Model(freerec.models.GenRecArch):
         self.prepare(dataset.path)
         self.criterion = freerec.criterions.BPRLoss(reduction='mean')
 
-        # Clean STAIR-NE-NLGCL v5+ Contrastive Module
-        self.ne_nlgcl_v5_plus = STAIR_NE_NLGCL_v5_Plus(
-            n_users       = self.User.count,
-            n_items       = self.Item.count,
-            tau           = cfg.tau,
-            alpha_dir     = cfg.alpha_dir,
-            eps           = cfg.eps,
-            tau_thresh    = cfg.tau_thresh,
-            lambda_cl     = cfg.lambda_cl,
-            gamma_h       = cfg.gamma_h,
-            warmup_epochs = cfg.warmup_epochs,
-        )
+        # Khởi tạo Contrastive Module tương ứng với method
+        if cfg.method == 'dan_tans' and STAIR_DAN_TANS_Module is not None:
+            self.ne_nlgcl_v5_plus = STAIR_DAN_TANS_Module(
+                n_users       = self.User.count,
+                n_items       = self.Item.count,
+                tau           = cfg.tau,
+                alpha_dir     = cfg.alpha_dir,
+                eps_base      = cfg.eps,
+                tau_thresh    = cfg.tau_thresh,
+                lambda_cl     = cfg.lambda_cl,
+                gamma_base    = cfg.gamma_h,
+                warmup_epochs = cfg.warmup_epochs,
+            )
+            edge_index_ui = self.dataset.train().to_bigraph(edge_type='u2i')['u2i'].edge_index
+            u_deg = edge_index_ui[0].bincount(minlength=self.User.count)
+            i_deg = edge_index_ui[1].bincount(minlength=self.Item.count)
+            self.ne_nlgcl_v5_plus.set_degrees(u_deg, i_deg)
+        elif cfg.method == 'dcd_gated' and STAIR_DCD_Gated_Module is not None:
+            self.ne_nlgcl_v5_plus = STAIR_DCD_Gated_Module(
+                n_users       = self.User.count,
+                n_items       = self.Item.count,
+                embedding_dim = cfg.embedding_dim,
+                tau           = cfg.tau,
+                eps           = cfg.eps,
+                tau_thresh    = cfg.tau_thresh,
+                lambda_cl     = cfg.lambda_cl,
+                gamma_h       = cfg.gamma_h,
+                warmup_epochs = cfg.warmup_epochs,
+            )
+        elif cfg.method == 'appnp_crossmodal' and STAIR_APPNP_CrossModal_Module is not None:
+            self.ne_nlgcl_v5_plus = STAIR_APPNP_CrossModal_Module(
+                n_users       = self.User.count,
+                n_items       = self.Item.count,
+                tau           = cfg.tau,
+                eps           = cfg.eps,
+                lambda_cl     = cfg.lambda_cl,
+                lambda_cross  = cfg.lambda_cross,
+                alpha_restart = cfg.alpha_restart,
+                warmup_epochs = cfg.warmup_epochs,
+            )
+        else:
+            self.ne_nlgcl_v5_plus = STAIR_NE_NLGCL_v5_Plus(
+                n_users       = self.User.count,
+                n_items       = self.Item.count,
+                tau           = cfg.tau,
+                alpha_dir     = cfg.alpha_dir,
+                eps           = cfg.eps,
+                tau_thresh    = cfg.tau_thresh,
+                lambda_cl     = cfg.lambda_cl,
+                gamma_h       = cfg.gamma_h,
+                warmup_epochs = cfg.warmup_epochs,
+            )
 
         self.last_cl_loss: Optional[float] = None
 
@@ -433,9 +507,35 @@ class STAIR_NE_NLGCL_v5_Plus_Model(freerec.models.GenRecArch):
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# Coach Class for STAIR-NE-NLGCL v5+
+# Coach Class for STAIR-NE-NLGCL v5+ & Breakthrough Methods
 # ═════════════════════════════════════════════════════════════════════════════
 class CoachForSTAIR_NE_NLGCL_v5_Plus(freerec.launcher.Coach):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.best_composite_score = -1.0
+        self.best_epoch = 0
+        self.patience_counter = 0
+        self.patience = getattr(self.cfg, 'patience', 30)
+        self.lr_warmup_epochs = getattr(self.cfg, 'lr_warmup_epochs', 15)
+        self.min_lr = getattr(self.cfg, 'min_lr', 1e-6)
+        self.use_composite = getattr(self.cfg, 'use_composite_metric', True)
+
+    def adjust_learning_rate(self, epoch: int) -> float:
+        base_lr = self.cfg.lr
+        min_lr = self.min_lr
+        warmup = self.lr_warmup_epochs
+        total = self.cfg.epochs
+
+        if epoch < warmup:
+            current_lr = min_lr + (base_lr - min_lr) * float(epoch + 1) / float(max(1, warmup))
+        else:
+            progress = float(epoch + 1 - warmup) / float(max(1, total - warmup))
+            current_lr = min_lr + 0.5 * (base_lr - min_lr) * (1.0 + math.cos(math.pi * progress))
+
+        for param_group in self.optimizer.param_groups:
+            param_group['lr'] = current_lr
+        return current_lr
 
     def set_optimizer(self):
         if self.cfg.optimizer.lower() == 'adamwsevo':
@@ -469,6 +569,7 @@ class CoachForSTAIR_NE_NLGCL_v5_Plus(freerec.launcher.Coach):
 
     def train_per_epoch(self, epoch: int):
         self.model.train()
+        current_lr = self.adjust_learning_rate(epoch)
         self.model.ne_nlgcl_v5_plus.update_epoch(epoch + 1)
         total_cl_loss = 0.0
         cl_batches = 0
@@ -492,12 +593,74 @@ class CoachForSTAIR_NE_NLGCL_v5_Plus(freerec.launcher.Coach):
 
         if cl_batches > 0:
             avg_cl_loss = total_cl_loss / float(cl_batches)
-            gamma_h, curr_lambda = self.model.ne_nlgcl_v5_plus.get_current_params()
+            gamma_h = getattr(self.model.ne_nlgcl_v5_plus, 'gamma_h', getattr(self.model.ne_nlgcl_v5_plus, 'gamma_base', 0.15))
+            curr_lambda = getattr(self.model.ne_nlgcl_v5_plus, 'current_lambda', 0.0)
             if (epoch + 1) % 10 == 0 or epoch == 0 or (epoch + 1) == self.cfg.epochs:
+                method_name = getattr(self.cfg, 'method', 'v5_plus')
                 print(
-                    f"  [v5+ Epoch {epoch + 1:03d}] gamma_h: {gamma_h:.4f} | "
-                    f"lambda: {curr_lambda:.5f} | avg_cl_loss: {avg_cl_loss:.6f}"
+                    f"  [{method_name.upper()} Epoch {epoch + 1:03d}] LR: {current_lr:.6e} | "
+                    f"gamma_h: {gamma_h:.4f} | lambda: {curr_lambda:.5f} | avg_cl_loss: {avg_cl_loss:.6f}"
                 )
+
+    def evaluate(self, epoch: int = 0, mode: str = 'valid'):
+        super().evaluate(epoch, mode=mode)
+        if mode == 'valid' and self.use_composite:
+            try:
+                meters = getattr(self, 'meters', None)
+                if meters is None and hasattr(self, 'monitor') and hasattr(self.monitor, 'meters'):
+                    meters = self.monitor.meters
+
+                def get_val(name):
+                    if meters is not None:
+                        for k, v in meters.items():
+                            if name.lower() == k.lower() or name.lower() in k.lower():
+                                return getattr(v, 'avg', getattr(v, 'val', None))
+                    return None
+
+                r10 = get_val('Recall@10')
+                r20 = get_val('Recall@20')
+                n10 = get_val('NDCG@10')
+                n20 = get_val('NDCG@20')
+
+                if all(v is not None for v in [r10, r20, n10, n20]):
+                    composite_score = (r10 + r20 + n10 + n20) / 4.0
+                    print(
+                        f"\n  📊 [COMPOSITE METRIC @Epoch {epoch:03d}]: {composite_score:.6f} "
+                        f"| R@10: {r10:.4f} | R@20: {r20:.4f} | N@10: {n10:.4f} | N@20: {n20:.4f}"
+                    )
+
+                    save_dir = getattr(self.cfg, 'CHECKPOINT_PATH', getattr(self.cfg, 'root_dir', '.'))
+                    os.makedirs(save_dir, exist_ok=True)
+                    best_ckpt_path = os.path.join(save_dir, "best_composite_model.pth")
+
+                    if composite_score > self.best_composite_score:
+                        self.best_composite_score = composite_score
+                        self.best_epoch = epoch
+                        self.patience_counter = 0
+                        torch.save({
+                            'epoch': epoch,
+                            'model_state_dict': self.model.state_dict(),
+                            'composite_score': composite_score,
+                            'metrics': {'Recall@10': r10, 'Recall@20': r20, 'NDCG@10': n10, 'NDCG@20': n20}
+                        }, best_ckpt_path)
+                        print(
+                            f"  🌟 [NEW BEST COMPOSITE MODEL] >>> Lưu checkpoint @Epoch {epoch} "
+                            f"(Composite={composite_score:.6f}) -> {best_ckpt_path}\n"
+                        )
+                    else:
+                        self.patience_counter += 1
+                        print(
+                            f"  ⏳ [Patience: {self.patience_counter}/{self.patience}] "
+                            f"Chưa có cải thiện composite kể từ Epoch {self.best_epoch} ({self.best_composite_score:.6f})\n"
+                        )
+                        if self.patience_counter >= self.patience:
+                            print(
+                                f"\n🛑 [EARLY STOPPING TRIGGERED] Kích hoạt dừng sớm sau {self.patience} epochs "
+                                f"không cải thiện Composite Metric (Best Epoch: {self.best_epoch}, Score: {self.best_composite_score:.6f}).\n"
+                            )
+                            self.cfg.epochs = epoch + 1
+            except Exception as e:
+                pass
 
 
 # ═════════════════════════════════════════════════════════════════════════════

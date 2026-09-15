@@ -1,7 +1,7 @@
 root: data
 dataset: Amazon2014Baby_550_MMRec
 
-embedding_dim: 64
+embedding_dim: 256
 num_layers: 3
 
 epochs: 500
