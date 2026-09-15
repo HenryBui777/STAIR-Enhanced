@@ -175,7 +175,7 @@ cfg.set_defaults(
     description="STAIR-NE-NLGCL-v5-Plus",
     root="../../data",
     dataset='Amazon2014Baby_550_MMRec',
-    epochs=500,
+    epochs=1000,
     batch_size=1024,
     optimizer='adamwsevo',
     lr=1e-3,
