@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-Script to update notebook/P3/stair_ne_nlgcl_v5_plus.ipynb:
-1. Target ONLY Amazon Baby & Amazon Sports (remove Electronics and TikTok).
+scripts/update_v5_plus_notebook.py
+==================================
+Updates notebook/P3/stair_ne_nlgcl_v5_plus.ipynb:
+1. Target ONLY Amazon Baby & Amazon Sports (Electronics & TikTok disabled).
 2. Set embedding_dim = 256 for both datasets.
 3. Cosine LR Warmup (15 epochs) + Annealing.
-4. Early Stopping Patience = 30 epochs.
-5. Checkpoint selection via Composite Metric: (Recall@10 + Recall@20 + NDCG@10 + NDCG@20) / 4.0.
-6. Support all 4 methods: v5_plus, dan_tans, dcd_gated, appnp_crossmodal.
-7. Cell 2 auto-wait if Kaggle is still downloading dataset (Adding data...).
-8. Keep live stdout streaming of every epoch.
+4. Early Stopping Patience = 30 epochs without NDCG@20 improvement.
+5. Max Epochs = 500 (reduced from 1000).
+6. Removed composite metric averaging: focus 100% on NDCG@20 for checkpoint selection and early stopping.
+7. Support all 4 methods: v5_plus, dan_tans, dcd_gated, appnp_crossmodal.
+8. Embed updated python modules into Cell 1.
 """
 import json
 import os
@@ -29,7 +31,7 @@ with open(notebook_path, "r", encoding="utf-8") as f:
 # 1. Update Title / Markdown Header (Cell 0)
 nb["cells"][0]["source"] = [
     "# 🚀 GIAI ĐOẠN 3: STAIR-NE-NLGCL v5+ (v3-REFINED) & BỘ 3 PHƯƠNG PHÁP ĐỘT PHÁ\n",
-    "## 🏆 Embedding Dim = 256 | Cosine Warmup LR (15 eps) | Patience = 30 | Composite Metric Checkpoint\n",
+    "## 🏆 Embedding Dim = 256 | Cosine Warmup LR (15 eps) | Patience = 30 | Checkpoint: NDCG@20 (500 eps)\n",
     "*(Tập trung độc quyền trên 2 tập dữ liệu: **Amazon Baby** & **Amazon Sports**; Đã tắt hoàn toàn Electronics và TikTok)*\n",
     "---\n",
     "### 🎯 4 PHƯƠNG PHÁP CÓ THỂ CHỌN KHI HUẤN LUYỆN (`method`):\n",
@@ -52,13 +54,13 @@ nb["cells"][0]["source"] = [
     "   - Đối chiếu chéo User <-> Modal nội dung cho Cold-start items.\n",
     "---\n",
     "### 📌 4 TRỤ CỘT TỐI ƯU SIÊU THAM SỐ:\n",
+    "* **Max Epochs:** `500` epochs (tối ưu hóa hội tụ, loại bỏ chạy thừa quá mức).\n",
     "* **Embedding Dimension:** `256` (tăng gấp 4 lần so với 64D).\n",
     "* **Cosine Warmup LR:** 15 epoch đầu tăng tuyến tính từ `1e-6` -> `1e-3`, sau đó decay theo cosine về `1e-6`.\n",
-    "* **Early Stopping Patience:** `30` epochs dựa trên điểm tổng hợp.\n",
-    "* **Composite Metric Checkpoint:** $\\text{Score} = (\\text{Recall@10} + \\text{Recall@20} + \\text{NDCG@10} + \\text{NDCG@20}) / 4.0$."
+    "* **Early Stopping & Checkpoint:** `30` epochs patience, tập trung độc quyền vào tối ưu hóa **`NDCG@20`** (bỏ trung bình 4 chỉ số).\n"
 ]
 
-# 2. Update Cell 1: Environment & Sync (add torch_geometric pip install + embed breakthrough module)
+# 2. Update Cell 1: Environment & Sync (Code Cell 1 -> nb['cells'][2])
 cell1_source = [
     "# Cell 1: Môi trường, Dependencies & Đồng bộ STAIR-Enhanced\n",
     "import os, shutil, subprocess, sys\n",
@@ -78,7 +80,7 @@ cell1_source = [
     "        shutil.rmtree(STAIR_DIR, ignore_errors=True)\n",
     "\n",
     "if not os.path.exists(STAIR_DIR):\n",
-    "    print(\"Cloning STAIR-Enhanced repository (branch main)...\")\n",
+    "    print(\"Cloning STAIR-Enhanced repository (branch main)...\" )\n",
     "    subprocess.run([\n",
     "        'git', 'clone', '--depth', '1',\n",
     "        'https://github.com/HenryBui777/STAIR-Enhanced.git', STAIR_DIR\n",
@@ -155,143 +157,20 @@ cell1_source = [
     "if not hasattr(dp, 'functional_datapipe'):\n",
     "    def functional_datapipe(name, enable_df_datapipes_support=False):\n",
     "        def decorator(cls):\n",
-    "            def method(self, *args, **kwargs):\n",
-    "                return cls(self, *args, **kwargs)\n",
-    "            if hasattr(dp, 'iter') and hasattr(dp.iter, 'IterDataPipe'):\n",
-    "                setattr(dp.iter.IterDataPipe, name, method)\n",
-    "            if hasattr(dp, 'map') and hasattr(dp.map, 'MapDataPipe'):\n",
-    "                setattr(dp.map.MapDataPipe, name, method)\n",
-    "            try:\n",
-    "                if hasattr(torch.utils.data, 'IterDataPipe'):\n",
-    "                    setattr(torch.utils.data.IterDataPipe, name, method)\n",
-    "                if hasattr(torch.utils.data, 'MapDataPipe'):\n",
-    "                    setattr(torch.utils.data.MapDataPipe, name, method)\n",
-    "            except Exception:\n",
-    "                pass\n",
+    "            def method(self, *args, **kwargs): return cls(self, *args, **kwargs)\n",
+    "            if hasattr(dp, 'iter') and hasattr(dp.iter, 'IterDataPipe'): setattr(dp.iter.IterDataPipe, name, method)\n",
+    "            if hasattr(dp, 'map') and hasattr(dp.map, 'MapDataPipe'): setattr(dp.map.MapDataPipe, name, method)\n",
     "            return cls\n",
     "        return decorator\n",
     "    dp.functional_datapipe = functional_datapipe\n",
     "\n",
-    "import freerec\n",
-    "print(f\"✅ freerec {freerec.__version__} và torch_geometric đã sẵn sàng!\")\n",
-    "\n",
-    "# 4. Kiểm tra GPU\n",
-    "import torch\n",
-    "print(\"=\" * 80)\n",
-    "if torch.cuda.is_available():\n",
-    "    gpu_name = torch.cuda.get_device_name(0)\n",
-    "    vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)\n",
-    "    print(f\"✅ GPU Phát hiện  : {gpu_name} ({vram_gb:.2f} GB VRAM)\")\n",
-    "else:\n",
-    "    print(\"⚠️ CẢNH BÁO: Không phát hiện GPU CUDA! Vui lòng chọn Settings -> Accelerator -> GPU T4 x 1.\")\n",
-    "print(\"=\" * 80)\n"
+    "print(\"✅ Môi trường STAIR-Enhanced & Dependencies đã hoàn tất sẵn sàng!\")\n"
 ]
 nb["cells"][2]["source"] = cell1_source
 
-# 3. Update Cell 2: Data Bridge (Only Baby & Sports, with Auto-Wait retry loop)
-cell2_source = [
-    "# Cell 2: Chuẩn bị dữ liệu chỉ cho Amazon Baby & Amazon Sports (Tự động đợi download xong)\n",
-    "import os, shutil, glob, time\n",
-    "\n",
-    "DATA_ROOT = '/kaggle/data'\n",
-    "PROCESSED_ROOT = os.path.join(DATA_ROOT, 'Processed')\n",
-    "LOCAL_DATA = '/kaggle/working/STAIR-Enhanced/data'\n",
-    "LOCAL_PROCESSED = os.path.join(LOCAL_DATA, 'Processed')\n",
-    "\n",
-    "for d in [DATA_ROOT, PROCESSED_ROOT, LOCAL_DATA, LOCAL_PROCESSED]:\n",
-    "    os.makedirs(d, exist_ok=True)\n",
-    "\n",
-    "TARGET_DATASETS = {\n",
-    "    'baby':   ('Amazon2014Baby_550_MMRec', ['baby', 'amazon2014baby']),\n",
-    "    'sports': ('Amazon2014Sports_550_MMRec', ['sport', 'sports', 'amazon2014sports']),\n",
-    "}\n",
-    "\n",
-    "REQUIRED_EXTENSIONS = ('.npy', '.pkl', '.txt', '.inter', '.item', '.pt', '.csv', '.yaml')\n",
-    "\n",
-    "def bridge_directories(src_dir, target_folder):\n",
-    "    destinations = [\n",
-    "        os.path.join(DATA_ROOT, target_folder),\n",
-    "        os.path.join(PROCESSED_ROOT, target_folder),\n",
-    "        os.path.join(LOCAL_DATA, target_folder),\n",
-    "        os.path.join(LOCAL_PROCESSED, target_folder),\n",
-    "    ]\n",
-    "    for dst in destinations:\n",
-    "        if os.path.abspath(src_dir) == os.path.abspath(dst):\n",
-    "            continue\n",
-    "        os.makedirs(dst, exist_ok=True)\n",
-    "        for item in os.listdir(src_dir):\n",
-    "            s_item = os.path.join(src_dir, item)\n",
-    "            d_item = os.path.join(dst, item)\n",
-    "            if os.path.isfile(s_item) and not os.path.exists(d_item):\n",
-    "                try:\n",
-    "                    os.symlink(s_item, d_item)\n",
-    "                except Exception:\n",
-    "                    shutil.copy2(s_item, d_item)\n",
-    "\n",
-    "def scan_and_prepare_data():\n",
-    "    input_base = '/kaggle/input'\n",
-    "    print(\"🔍 Đang quét dữ liệu Amazon Baby & Amazon Sports...\")\n",
-    "    \n",
-    "    # Thử tối đa 12 lần (mỗi lần 5s = 60s) phòng trường hợp Kaggle đang tải dở dataset\n",
-    "    for attempt in range(12):\n",
-    "        found_datasets = {}\n",
-    "        for key, (target_folder, keywords) in TARGET_DATASETS.items():\n",
-    "            processed_dst = os.path.join(PROCESSED_ROOT, target_folder)\n",
-    "            raw_dst = os.path.join(DATA_ROOT, target_folder)\n",
-    "            \n",
-    "            # 1. Đã có sẵn đủ file\n",
-    "            for check_p in [processed_dst, raw_dst, os.path.join(LOCAL_DATA, target_folder)]:\n",
-    "                if os.path.exists(check_p) and len(os.listdir(check_p)) >= 4:\n",
-    "                    bridge_directories(check_p, target_folder)\n",
-    "                    found_datasets[key] = processed_dst\n",
-    "                    break\n",
-    "            if key in found_datasets:\n",
-    "                continue\n",
-    "            \n",
-    "            # 2. Tìm trong /kaggle/input\n",
-    "            candidates = []\n",
-    "            if os.path.exists(input_base):\n",
-    "                for root, dirs, files in os.walk(input_base):\n",
-    "                    if target_folder in dirs:\n",
-    "                        cand = os.path.join(root, target_folder)\n",
-    "                        if os.path.exists(cand) and len(os.listdir(cand)) >= 4:\n",
-    "                            candidates.append(cand)\n",
-    "                    elif any(f.endswith('.pkl') for f in files) and any(kw in root.lower() for kw in keywords):\n",
-    "                        if len(files) >= 4:\n",
-    "                            candidates.append(root)\n",
-    "            \n",
-    "            if candidates:\n",
-    "                src = candidates[0]\n",
-    "                os.makedirs(processed_dst, exist_ok=True)\n",
-    "                for f in os.listdir(src):\n",
-    "                    if f.endswith(REQUIRED_EXTENSIONS):\n",
-    "                        shutil.copy2(os.path.join(src, f), os.path.join(processed_dst, f))\n",
-    "                bridge_directories(processed_dst, target_folder)\n",
-    "                print(f\"  [TÌM THẤY & KẾT NỐI] {key.upper()} -> {processed_dst} ({len(os.listdir(processed_dst))} tệp)\")\n",
-    "                found_datasets[key] = processed_dst\n",
-    "        \n",
-    "        if len(found_datasets) == len(TARGET_DATASETS):\n",
-    "            return found_datasets\n",
-    "        else:\n",
-    "            print(f\"⏳ Dataset đang được Kaggle tải về (Adding data...)... Đợi 5s (lần {attempt+1}/12)...\")\n",
-    "            time.sleep(5)\n",
-    "            \n",
-    "    return found_datasets\n",
-    "\n",
-    "prepared_data = scan_and_prepare_data()\n",
-    "print(\"=\" * 75)\n",
-    "print(f\"TỔNG KẾT DỮ LIỆU: {len(prepared_data)} / {len(TARGET_DATASETS)} tập đã sẵn sàng trong Processed\")\n",
-    "for k, (tf, _) in TARGET_DATASETS.items():\n",
-    "    p_dir = os.path.join(PROCESSED_ROOT, tf)\n",
-    "    status = f\"✅ {len(os.listdir(p_dir))} tệp sẵn sàng\" if (os.path.exists(p_dir) and len(os.listdir(p_dir)) >= 4) else \"❌ THIẾU\"\n",
-    "    print(f\"  * {k.upper():12s} ({tf}): {status}\")\n",
-    "print(\"=\" * 75)\n"
-]
-nb["cells"][4]["source"] = cell2_source
-
-# 4. Update Cell 4: Runner Function (add method argument and parameters)
+# 3. Update Cell 4: Runner Function (Code Cell 4 -> nb['cells'][8])
 cell4_source = [
-    "# Cell 4: Runner Huấn Luyện Tự Động (Hỗ trợ 4 Phương Pháp, Dim 256, Cosine LR, Patience 30)\n",
+    "# Cell 4: Runner Huấn Luyện Tự Động (Hỗ trợ 4 Phương Pháp, Dim 256, Cosine LR, Patience 30, Epochs 500)\n",
     "import subprocess, sys, os, time, re, threading\n",
     "\n",
     "TRACKED_METRICS = ['Recall@10', 'Recall@20', 'NDCG@10', 'NDCG@20']\n",
@@ -340,7 +219,7 @@ cell4_source = [
     "def run_training_v5_plus(\n",
     "    key, yaml_cfg, data_root, log_path,\n",
     "    method='v5_plus',\n",
-    "    epochs=1000,\n",
+    "    epochs=500,\n",
     "    embedding_dim=256,\n",
     "    lr_warmup_epochs=15,\n",
     "    min_lr=1e-6,\n",
@@ -357,7 +236,7 @@ cell4_source = [
     "    print(f'  * Max Epochs          : {epochs}')\n",
     "    print(f'  * LR Cosine Warmup    : {lr_warmup_epochs} eps -> Cosine Decay (min_lr: {min_lr})')\n",
     "    print(f'  * Early Stop Patience : {patience} eps')\n",
-    "    print(f'  * Checkpoint Metric   : Composite Metric (R10+R20+N10+N20)/4')\n",
+    "    print(f'  * Target Metric       : NDCG@20 (N@20)')\n",
     "    print(f'  * Log Path            : {log_path}')\n",
     "    print('=' * 85)\n",
     "\n",
@@ -413,9 +292,9 @@ cell4_source = [
 ]
 nb["cells"][8]["source"] = cell4_source
 
-# 5. Update Cell 5: Hyperparameters (Embedding Dim = 256, Cosine LR, Patience 30)
+# 4. Update Cell 5: Hyperparameters (Code Cell 5 -> nb['cells'][10])
 cell5_source = [
-    "# Cell 5: Cấu hình Siêu tham số (Chỉ cho Baby & Sports: Dim 256, Cosine LR, Patience 30)\n",
+    "# Cell 5: Cấu hình Siêu tham số (Chỉ cho Baby & Sports: Dim 256, Cosine LR, Patience 30, Epochs 500)\n",
     "import os\n",
     "\n",
     "os.makedirs('/kaggle/working/logs/breakthrough', exist_ok=True)\n",
@@ -424,7 +303,7 @@ cell5_source = [
     "    'baby': {\n",
     "        'yaml':              '/kaggle/working/STAIR-Enhanced/configs/Amazon2014Baby_550_MMRec.yaml',\n",
     "        'embedding_dim':     256,\n",
-    "        'epochs':            1000,\n",
+    "        'epochs':            500,\n",
     "        'lr_warmup_epochs':  15,\n",
     "        'min_lr':            1e-6,\n",
     "        'patience':          30,\n",
@@ -440,7 +319,7 @@ cell5_source = [
     "    'sports': {\n",
     "        'yaml':              '/kaggle/working/STAIR-Enhanced/configs/Amazon2014Sports_550_MMRec.yaml',\n",
     "        'embedding_dim':     256,\n",
-    "        'epochs':            1000,\n",
+    "        'epochs':            500,\n",
     "        'lr_warmup_epochs':  15,\n",
     "        'min_lr':            1e-6,\n",
     "        'patience':          30,\n",
@@ -456,113 +335,60 @@ cell5_source = [
     "}\n",
     "\n",
     "print('=' * 85)\n",
-    "print('✅ CẤU HÌNH THỰC NGHIỆM ĐÃ SẴN SÀNG:')\n",
+    "print('✅ CẤU HÌNH THỰC NGHIỆM ĐÃ SẴN SÀNG (EPOCHS = 500, CHECKPOINT = NDCG@20):')\n",
     "for k, v in V5_PLUS_CONFIGS.items():\n",
-    "    print(f\"  • [{k.upper()}]: Dim={v['embedding_dim']}, LR Warmup={v['lr_warmup_epochs']} eps, Patience={v['patience']} eps, Lambda_CL={v['lambda_cl']}\")\n",
+    "    print(f\"  • [{k.upper()}]: Epochs={v['epochs']}, Dim={v['embedding_dim']}, LR Warmup={v['lr_warmup_epochs']} eps, Patience={v['patience']} eps, Lambda_CL={v['lambda_cl']}\")\n",
     "print('=' * 85)\n"
 ]
 nb["cells"][10]["source"] = cell5_source
 
-# 6. Update Cell 6: Train Baby & Sports
-cell6_source = [
-    "# Cell 6: Huấn luyện trên Amazon Baby & Amazon Sports\n",
-    "# Tùy chọn method: 'v5_plus' (gốc), 'dan_tans' (Hướng 1), 'dcd_gated' (Hướng 2), 'appnp_crossmodal' (Hướng 3)\n",
-    "SELECTED_METHOD = 'dan_tans' # <--- Thay đổi phương pháp ở đây tùy ý!\n",
-    "\n",
-    "DATA_ROOT = '/kaggle/data'\n",
-    "\n",
-    "# 1. Huấn luyện Amazon Baby (Dim=256)\n",
-    "if 'baby' in prepared_data:\n",
-    "    cfg_b = V5_PLUS_CONFIGS['baby']\n",
-    "    log_p = f\"/kaggle/working/logs/breakthrough/baby_{SELECTED_METHOD}_dim256.log\"\n",
-    "    run_training_v5_plus(\n",
-    "        key='baby',\n",
-    "        yaml_cfg=cfg_b['yaml'],\n",
-    "        data_root=DATA_ROOT,\n",
-    "        log_path=log_p,\n",
-    "        method=SELECTED_METHOD,\n",
-    "        **{k: v for k, v in cfg_b.items() if k != 'yaml'}\n",
-    "    )\n",
-    "else:\n",
-    "    print('⚠️ Bỏ qua Amazon Baby do thiếu dữ liệu.')\n",
-    "\n",
-    "# 2. Huấn luyện Amazon Sports (Dim=256)\n",
-    "if 'sports' in prepared_data:\n",
-    "    cfg_s = V5_PLUS_CONFIGS['sports']\n",
-    "    log_p = f\"/kaggle/working/logs/breakthrough/sports_{SELECTED_METHOD}_dim256.log\"\n",
-    "    run_training_v5_plus(\n",
-    "        key='sports',\n",
-    "        yaml_cfg=cfg_s['yaml'],\n",
-    "        data_root=DATA_ROOT,\n",
-    "        log_path=log_p,\n",
-    "        method=SELECTED_METHOD,\n",
-    "        **{k: v for k, v in cfg_s.items() if k != 'yaml'}\n",
-    "    )\n",
-    "else:\n",
-    "    print('⚠️ Bỏ qua Amazon Sports do thiếu dữ liệu.')\n"
-]
-nb["cells"][12]["source"] = cell6_source
-
-# 7. Remove or disable Cell 7 (Electronics) and Cell 8 (TikTok)
-# We will replace them with a concise single cell explaining Electronics and TikTok are disabled
+# 5. Update Cell 7: Markdown Header (Markdown Cell 7 -> nb['cells'][13])
 nb["cells"][13]["source"] = [
-    "## Cell 7 ℹ️ Ghi chú: Amazon Electronics & TikTok đã được tắt theo yêu cầu\n",
-    "Tập trung độc quyền tài nguyên GPU T4 và thời gian huấn luyện cho **Amazon Baby** và **Amazon Sports**."
+    "## Cell 7 📊 Bảng Tổng Kết Kết Quả Thực Nghiệm (Baby & Sports)\n",
+    "Bảng tổng hợp đối sánh 4 chỉ số khoa học: **Recall@10, Recall@20, NDCG@10, NDCG@20** và mức cải thiện trọng tâm **NDCG@20 (Δ vs v5 N@20)** giữa Baseline, SOTA v5 và Phương pháp cải tiến mới."
 ]
+
+# 6. Update Cell 7: PrettyTable Code (Code Cell 7 -> nb['cells'][14])
 nb["cells"][14]["source"] = [
-    "# Cell 7: Electronics & TikTok đã tắt\n",
-    "print('ℹ️ Đã tắt Electronics và TikTok. Thực nghiệm chỉ tập trung vào Baby và Sports.')\n"
+    "# Cell 7: Bảng tổng kết kết quả thực nghiệm Baby & Sports\n",
+    "import os, glob\n",
+    "from prettytable import PrettyTable\n",
+    "\n",
+    "BASELINE = {\n",
+    "    'baby':   {'Recall@10': 0.0674, 'Recall@20': 0.1042, 'NDCG@10': 0.0359, 'NDCG@20': 0.0454},\n",
+    "    'sports': {'Recall@10': 0.0743, 'Recall@20': 0.1111, 'NDCG@10': 0.0405, 'NDCG@20': 0.0500},\n",
+    "}\n",
+    "V5_RESULTS = {\n",
+    "    'baby':   {'Recall@10': 0.0669, 'Recall@20': 0.1027, 'NDCG@10': 0.0362, 'NDCG@20': 0.0454},\n",
+    "    'sports': {'Recall@10': 0.0753, 'Recall@20': 0.1113, 'NDCG@10': 0.0415, 'NDCG@20': 0.0508},\n",
+    "}\n",
+    "\n",
+    "table = PrettyTable()\n",
+    "table.field_names = ['Tập dữ liệu', 'Phương pháp', 'Recall@10', 'Recall@20', 'NDCG@10', 'NDCG@20', 'Δ vs v5 N@20']\n",
+    "\n",
+    "for ds in ['baby', 'sports']:\n",
+    "    # Mốc chuẩn Baseline\n",
+    "    bl = BASELINE[ds]\n",
+    "    table.add_row([ds.upper(), 'STAIR Baseline (64D)', f\"{bl['Recall@10']:.4f}\", f\"{bl['Recall@20']:.4f}\", f\"{bl['NDCG@10']:.4f}\", f\"{bl['NDCG@20']:.4f}\", '-'])\n",
+    "    \n",
+    "    # Mốc chuẩn v5\n",
+    "    v5 = V5_RESULTS[ds]\n",
+    "    table.add_row([ds.upper(), 'STAIR v5 SOTA (64D)', f\"{v5['Recall@10']:.4f}\", f\"{v5['Recall@20']:.4f}\", f\"{v5['NDCG@10']:.4f}\", f\"{v5['NDCG@20']:.4f}\", '0.00%'])\n",
+    "    \n",
+    "    # Các log thực nghiệm mới trong logs/breakthrough\n",
+    "    log_files = glob.glob(f\"/kaggle/working/logs/breakthrough/{ds}_*.log\")\n",
+    "    for lf in log_files:\n",
+    "        ep, m = extract_best_test(lf)\n",
+    "        if m and len(m) >= 4:\n",
+    "            tag = os.path.basename(lf).replace(f\"{ds}_\", \"\").replace(\".log\", \"\")\n",
+    "            gain = (m['NDCG@20'] - v5['NDCG@20']) / v5['NDCG@20'] * 100\n",
+    "            sign = '+' if gain >= 0 else ''\n",
+    "            table.add_row([ds.upper(), f\"★ {tag} (@Ep{ep})\", f\"{m['Recall@10']:.4f}\", f\"{m['Recall@20']:.4f}\", f\"{m['NDCG@10']:.4f}\", f\"{m['NDCG@20']:.4f}\", f\"{sign}{gain:.2f}%\"])\n",
+    "\n",
+    "print(table)\n"
 ]
 
-# 8. Update Ablation Summary Table Cell
-# Find cell with prettytable
-for cell in nb["cells"]:
-    if cell.get("cell_type") == "code" and any("BASELINE" in line for line in cell.get("source", [])):
-        cell["source"] = [
-            "# Cell: Bảng tổng kết kết quả thực nghiệm Baby & Sports\n",
-            "import os, glob\n",
-            "from prettytable import PrettyTable\n",
-            "\n",
-            "BASELINE = {\n",
-            "    'baby':   {'Recall@10': 0.0674, 'Recall@20': 0.1042, 'NDCG@10': 0.0359, 'NDCG@20': 0.0454},\n",
-            "    'sports': {'Recall@10': 0.0743, 'Recall@20': 0.1111, 'NDCG@10': 0.0405, 'NDCG@20': 0.0500},\n",
-            "}\n",
-            "V5_RESULTS = {\n",
-            "    'baby':   {'Recall@10': 0.0669, 'Recall@20': 0.1027, 'NDCG@10': 0.0362, 'NDCG@20': 0.0454},\n",
-            "    'sports': {'Recall@10': 0.0753, 'Recall@20': 0.1113, 'NDCG@10': 0.0415, 'NDCG@20': 0.0508},\n",
-            "}\n",
-            "\n",
-            "table = PrettyTable()\n",
-            "table.field_names = ['Tập dữ liệu', 'Phương pháp', 'Recall@10', 'Recall@20', 'NDCG@10', 'NDCG@20', 'Điểm Tổng Hợp', 'Δ vs v5 R@20']\n",
-            "\n",
-            "for ds in ['baby', 'sports']:\n",
-            "    # Mốc chuẩn Baseline\n",
-            "    bl = BASELINE[ds]\n",
-            "    bl_score = (bl['Recall@10'] + bl['Recall@20'] + bl['NDCG@10'] + bl['NDCG@20']) / 4.0\n",
-            "    table.add_row([ds.upper(), 'STAIR Baseline (64D)', f\"{bl['Recall@10']:.4f}\", f\"{bl['Recall@20']:.4f}\", f\"{bl['NDCG@10']:.4f}\", f\"{bl['NDCG@20']:.4f}\", f\"{bl_score:.4f}\", '-'])\n",
-            "    \n",
-            "    # Mốc chuẩn v5\n",
-            "    v5 = V5_RESULTS[ds]\n",
-            "    v5_score = (v5['Recall@10'] + v5['Recall@20'] + v5['NDCG@10'] + v5['NDCG@20']) / 4.0\n",
-            "    table.add_row([ds.upper(), 'STAIR v5 SOTA (64D)', f\"{v5['Recall@10']:.4f}\", f\"{v5['Recall@20']:.4f}\", f\"{v5['NDCG@10']:.4f}\", f\"{v5['NDCG@20']:.4f}\", f\"{v5_score:.4f}\", '0.00%'])\n",
-            "    \n",
-            "    # Các log thực nghiệm mới trong logs/breakthrough\n",
-            "    log_files = glob.glob(f\"/kaggle/working/logs/breakthrough/{ds}_*.log\")\n",
-            "    for lf in log_files:\n",
-            "        ep, m = extract_best_test(lf)\n",
-            "        if m and len(m) >= 4:\n",
-            "            tag = os.path.basename(lf).replace(f\"{ds}_\", \"\").replace(\".log\", \"\")\n",
-            "            score = (m['Recall@10'] + m['Recall@20'] + m['NDCG@10'] + m['NDCG@20']) / 4.0\n",
-            "            gain = (m['Recall@20'] - v5['Recall@20']) / v5['Recall@20'] * 100\n",
-            "            sign = '+' if gain >= 0 else ''\n",
-            "            table.add_row([ds.upper(), f\"★ {tag} (@Ep{ep})\", f\"{m['Recall@10']:.4f}\", f\"{m['Recall@20']:.4f}\", f\"{m['NDCG@10']:.4f}\", f\"{m['NDCG@20']:.4f}\", f\"{score:.4f}\", f\"{sign}{gain:.2f}%\"])\n",
-            "\n",
-            "print(table)\n"
-        ]
-
-# Remove excess cells if any (like the old TikTok training markdown and code)
-# Let's save the modified notebook
 with open(notebook_path, "w", encoding="utf-8") as f:
     json.dump(nb, f, indent=1, ensure_ascii=False)
 
-print(f"Successfully updated {notebook_path}!")
+print(f"[OK] Successfully updated {notebook_path}! (Total cells: {len(nb['cells'])})")
