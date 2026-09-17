@@ -312,28 +312,69 @@ class STAIR_Breakthrough_Model(freerec.models.RecSysProxy):
             self.cl_module.set_degrees(u_deg, i_deg)
 
         elif self.method == 'dcd_gated':
-            # Tính Ochiai co-purchase đồng thuận với modal similarity cho Top-3
             with torch.no_grad():
+                # ── Zero-OOM Sparse Dual Consensus Engine (Thích ứng từ Baby -> Electronics 63K) ──
                 i_norm = F.normalize(mfeats_init, p=2, dim=-1).to(cfg.device)
-                sim_m = torch.clamp(torch.matmul(i_norm, i_norm.t()), min=0.0)
-                # Ochiai co-purchase
-                R_t = torch.sparse_coo_tensor(raw_edge_ui, torch.ones_like(raw_edge_ui[0], dtype=torch.float), size=(self.User.count, self.Item.count)).to(cfg.device)
-                co_matrix = torch.sparse.mm(R_t.t(), R_t).to_dense()
-                co_deg = torch.sqrt(i_deg.unsqueeze(1) * i_deg.unsqueeze(0)).clamp(min=1.0)
-                ochiai = co_matrix / co_deg
-                # Dual Consensus
-                consensus = ochiai * sim_m
-                consensus.fill_diagonal_(0.0)
-                topk_val, topk_idx = torch.topk(consensus, k=3, dim=-1)
-                mask = topk_val > 0.05
-                row_idx = torch.arange(self.Item.count, device=cfg.device).unsqueeze(1).repeat(1, 3)[mask]
-                col_idx = topk_idx[mask]
-                edge_val = topk_val[mask]
+
+                # 1. Tính ma trận đồng mua thưa (Sparse Co-purchase) bằng CSR
+                edge_weight_ui_ones = torch.ones_like(raw_edge_ui[0], dtype=torch.float)
+                R_csr = torch.sparse_coo_tensor(
+                    raw_edge_ui, edge_weight_ui_ones,
+                    size=(self.User.count, self.Item.count)
+                ).to_sparse_csr()
+                Rt_csr = torch.sparse_coo_tensor(
+                    torch.stack([raw_edge_ui[1], raw_edge_ui[0]]), edge_weight_ui_ones,
+                    size=(self.Item.count, self.User.count)
+                ).to_sparse_csr()
+
+                co_sparse = torch.sparse.mm(Rt_csr, R_csr).to_sparse_coo()
+                co_idx = co_sparse.indices()
+                co_val = co_sparse.values()
+
+                # 2. Loại bỏ vòng lặp bản thân (i != j)
+                diag_mask = co_idx[0] != co_idx[1]
+                row = co_idx[0][diag_mask]
+                col = co_idx[1][diag_mask]
+                val = co_val[diag_mask]
+
+                # 3. Ochiai Co-purchase Normalization
+                deg_norm = torch.sqrt(i_deg[row] * i_deg[col]).clamp(min=1.0)
+                ochiai_val = val / deg_norm
+
+                # 4. Tính tương đồng Modal CHỈ trên các cặp đồng mua thực tế (Tiết kiệm 99.99% RAM)
+                sim_m_val = torch.clamp((i_norm[row] * i_norm[col]).sum(dim=-1), min=0.0)
+
+                # 5. Dual Consensus (Ochiai x Modal) và ngưỡng lọc tin cậy > 0.05
+                consensus_val = ochiai_val * sim_m_val
+                thresh_mask = consensus_val > 0.05
+                row = row[thresh_mask]
+                col = col[thresh_mask]
+                edge_val = consensus_val[thresh_mask]
+
                 if len(edge_val) > 0:
+                    # 6. Lấy tối đa Top-3 cạnh tin cậy nhất cho mỗi sản phẩm (Vectorized Top-K)
+                    score = row.float() * 1e6 - edge_val
+                    perm = torch.argsort(score)
+                    row_s = row[perm]
+                    col_s = col[perm]
+                    val_s = edge_val[perm]
+
+                    is_start = torch.cat([torch.tensor([True], device=cfg.device), row_s[1:] != row_s[:-1]])
+                    start_idx = torch.where(is_start)[0]
+                    counts = torch.diff(torch.cat([start_idx, torch.tensor([len(row_s)], device=cfg.device)]))
+                    ranks = torch.arange(len(row_s), device=cfg.device) - torch.repeat_interleave(start_idx, counts)
+                    topk_mask = ranks < 3
+
+                    row_idx = row_s[topk_mask]
+                    col_idx = col_s[topk_mask]
+                    edge_val = val_s[topk_mask]
+
                     conf_idx = torch.stack([row_idx, col_idx], dim=0)
                     conf_idx, edge_val = freerec.graph.to_normalized(conf_idx, edge_val, normalization='sym')
-                    self.s_conf_sparse = torch.sparse_coo_tensor(conf_idx, edge_val, size=(self.Item.count, self.Item.count)).coalesce()
-                    print(f"[{cfg.dataset}] ✅ DCD-Gated: Khởi tạo thành công {len(edge_val)} cạnh ảo đồng thuận cao.")
+                    self.s_conf_sparse = torch.sparse_coo_tensor(
+                        conf_idx, edge_val, size=(self.Item.count, self.Item.count)
+                    ).coalesce()
+                    print(f"[{cfg.dataset}] ✅ DCD-Gated: Khởi tạo thành công {len(edge_val)} cạnh ảo đồng thuận cao (Zero-OOM Sparse Engine).")
 
     def sure_trainpipe(self, batch_size: int):
         return (
