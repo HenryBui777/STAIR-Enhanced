@@ -37,8 +37,10 @@ cfg.set_defaults(
 cfg.compile()
 
 
-cfg.mfiles = cfg.mfiles.split(',')
-cfg.num_neighbors = list(map(int, cfg.num_neighbors.split('-'))) 
+if isinstance(cfg.mfiles, str):
+    cfg.mfiles = cfg.mfiles.split(',')
+if isinstance(cfg.num_neighbors, str):
+    cfg.num_neighbors = list(map(int, cfg.num_neighbors.split('-'))) 
 
 # beta3 here is the 1 - beta_j for BSC
 cfg.beta3 = (0.1 + 0.9 * (torch.arange(cfg.embedding_dim) / cfg.embedding_dim).pow(cfg.gamma)).to(cfg.device)
@@ -109,7 +111,13 @@ class STAIR(freerec.models.GenRecArch):
             feats = feats.float()
         feats = feats - feats.mean(0, keepdim=True)
         feats, _, _ = torch.linalg.svd(feats, full_matrices=False)
-        return feats[:, :cfg.embedding_dim] * math.sqrt(self.Item.count / cfg.embedding_dim)
+        if feats.size(1) < cfg.embedding_dim:
+            reps = math.ceil(cfg.embedding_dim / feats.size(1))
+            scale = math.sqrt(feats.size(1) / cfg.embedding_dim)
+            feats = (feats.repeat(1, reps)[:, :cfg.embedding_dim]) * scale
+        else:
+            feats = feats[:, :cfg.embedding_dim]
+        return feats * math.sqrt(self.Item.count / cfg.embedding_dim)
 
     def get_knn_graph(self, features: torch.Tensor, k: int = 5):
         r"""
