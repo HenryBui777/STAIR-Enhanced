@@ -20,7 +20,7 @@ with open(r"d:\STAIR-Enhanced\models\stair_ne_nlgcl_v5_plus.py", "r", encoding="
 with open(r"d:\STAIR-Enhanced\main_stair_ne_nlgcl_v5_plus.py", "r", encoding="utf-8") as f:
     runner_code = f.read()
 
-template_path = r"d:\STAIR-Enhanced\notebook\stair.ipynb"
+template_path = r"d:\STAIR-Enhanced\notebook\P3\stair_ne_nlgcl_v5_plus.ipynb"
 with open(template_path, "r", encoding="utf-8") as f:
     nb = json.load(f)
 

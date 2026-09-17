@@ -305,8 +305,10 @@ class STAIR_Breakthrough_Model(freerec.models.RecSysProxy):
 
         # ── Setup Bổ sung cho từng Method ──
         raw_edge_ui = self.dataset.train().to_bigraph(edge_type='u2i')['u2i'].edge_index
-        u_deg = raw_edge_ui[0].bincount(minlength=self.User.count).to(cfg.device)
-        i_deg = raw_edge_ui[1].bincount(minlength=self.Item.count).to(cfg.device)
+        u_deg_cpu = raw_edge_ui[0].bincount(minlength=self.User.count)
+        i_deg_cpu = raw_edge_ui[1].bincount(minlength=self.Item.count)
+        u_deg = u_deg_cpu.to(cfg.device)
+        i_deg = i_deg_cpu.to(cfg.device)
 
         if self.method == 'dan_tans':
             self.cl_module.set_degrees(u_deg, i_deg)
@@ -314,9 +316,10 @@ class STAIR_Breakthrough_Model(freerec.models.RecSysProxy):
         elif self.method == 'dcd_gated':
             with torch.no_grad():
                 # ── Zero-OOM Sparse Dual Consensus Engine (Thích ứng từ Baby -> Electronics 63K) ──
-                i_norm = F.normalize(mfeats_init, p=2, dim=-1).to(cfg.device)
+                # Mọi phép tính ma trận thưa thực hiện 100% trên CPU RAM (30GB) để tránh OOM GPU và lỗi device mismatch
+                i_norm_cpu = F.normalize(mfeats_init.cpu(), p=2, dim=-1)
 
-                # 1. Tính ma trận đồng mua thưa (Sparse Co-purchase) bằng CSR
+                # 1. Tính ma trận đồng mua thưa (Sparse Co-purchase) bằng CSR trên CPU
                 edge_weight_ui_ones = torch.ones_like(raw_edge_ui[0], dtype=torch.float)
                 R_csr = torch.sparse_coo_tensor(
                     raw_edge_ui, edge_weight_ui_ones,
@@ -337,12 +340,12 @@ class STAIR_Breakthrough_Model(freerec.models.RecSysProxy):
                 col = co_idx[1][diag_mask]
                 val = co_val[diag_mask]
 
-                # 3. Ochiai Co-purchase Normalization
-                deg_norm = torch.sqrt(i_deg[row] * i_deg[col]).clamp(min=1.0)
+                # 3. Ochiai Co-purchase Normalization (tính hoàn toàn trên CPU)
+                deg_norm = torch.sqrt(i_deg_cpu[row].float() * i_deg_cpu[col].float()).clamp(min=1.0)
                 ochiai_val = val / deg_norm
 
-                # 4. Tính tương đồng Modal CHỈ trên các cặp đồng mua thực tế (Tiết kiệm 99.99% RAM)
-                sim_m_val = torch.clamp((i_norm[row] * i_norm[col]).sum(dim=-1), min=0.0)
+                # 4. Tính tương đồng Modal CHỈ trên các cặp đồng mua thực tế (CPU)
+                sim_m_val = torch.clamp((i_norm_cpu[row] * i_norm_cpu[col]).sum(dim=-1), min=0.0)
 
                 # 5. Dual Consensus (Ochiai x Modal) và ngưỡng lọc tin cậy > 0.05
                 consensus_val = ochiai_val * sim_m_val
@@ -352,17 +355,17 @@ class STAIR_Breakthrough_Model(freerec.models.RecSysProxy):
                 edge_val = consensus_val[thresh_mask]
 
                 if len(edge_val) > 0:
-                    # 6. Lấy tối đa Top-3 cạnh tin cậy nhất cho mỗi sản phẩm (Vectorized Top-K)
+                    # 6. Lấy tối đa Top-3 cạnh tin cậy nhất cho mỗi sản phẩm (Vectorized Top-K trên CPU)
                     score = row.float() * 1e6 - edge_val
                     perm = torch.argsort(score)
                     row_s = row[perm]
                     col_s = col[perm]
                     val_s = edge_val[perm]
 
-                    is_start = torch.cat([torch.tensor([True], device=cfg.device), row_s[1:] != row_s[:-1]])
+                    is_start = torch.cat([torch.tensor([True]), row_s[1:] != row_s[:-1]])
                     start_idx = torch.where(is_start)[0]
-                    counts = torch.diff(torch.cat([start_idx, torch.tensor([len(row_s)], device=cfg.device)]))
-                    ranks = torch.arange(len(row_s), device=cfg.device) - torch.repeat_interleave(start_idx, counts)
+                    counts = torch.diff(torch.cat([start_idx, torch.tensor([len(row_s)])]))
+                    ranks = torch.arange(len(row_s)) - torch.repeat_interleave(start_idx, counts)
                     topk_mask = ranks < 3
 
                     row_idx = row_s[topk_mask]
@@ -371,10 +374,13 @@ class STAIR_Breakthrough_Model(freerec.models.RecSysProxy):
 
                     conf_idx = torch.stack([row_idx, col_idx], dim=0)
                     conf_idx, edge_val = freerec.graph.to_normalized(conf_idx, edge_val, normalization='sym')
+                    # Đưa ma trận thưa đã chuẩn hóa cực nhẹ (<5MB) lên GPU device để forward tính toán siêu tốc
                     self.s_conf_sparse = torch.sparse_coo_tensor(
-                        conf_idx, edge_val, size=(self.Item.count, self.Item.count)
+                        conf_idx.to(cfg.device), edge_val.to(cfg.device),
+                        size=(self.Item.count, self.Item.count),
+                        device=cfg.device
                     ).coalesce()
-                    print(f"[{cfg.dataset}] ✅ DCD-Gated: Khởi tạo thành công {len(edge_val)} cạnh ảo đồng thuận cao (Zero-OOM Sparse Engine).")
+                    print(f"[{cfg.dataset}] ✅ DCD-Gated: Khởi tạo thành công {len(edge_val)} cạnh ảo đồng thuận cao (Zero-OOM Sparse Engine, Device={cfg.device}).")
 
     def sure_trainpipe(self, batch_size: int):
         return (
