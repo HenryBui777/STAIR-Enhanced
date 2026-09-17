@@ -320,7 +320,13 @@ class STAIR_NE_NLGCL_v5_Plus_Model(freerec.models.GenRecArch):
             feats = feats.float()
         feats = feats - feats.mean(0, keepdim=True)
         feats, _, _ = torch.linalg.svd(feats, full_matrices=False)
-        return feats[:, :cfg.embedding_dim] * math.sqrt(self.Item.count / cfg.embedding_dim)
+        if feats.size(1) < cfg.embedding_dim:
+            reps = math.ceil(cfg.embedding_dim / feats.size(1))
+            scale = math.sqrt(feats.size(1) / cfg.embedding_dim)
+            feats = (feats.repeat(1, reps)[:, :cfg.embedding_dim]) * scale
+        else:
+            feats = feats[:, :cfg.embedding_dim]
+        return feats * math.sqrt(self.Item.count / cfg.embedding_dim)
 
     def get_knn_graph(self, features: torch.Tensor, k: int = 5):
         if not isinstance(features, torch.Tensor):
