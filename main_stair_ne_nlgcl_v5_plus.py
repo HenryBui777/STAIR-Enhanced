@@ -186,8 +186,10 @@ cfg.set_defaults(
 )
 cfg.compile()
 
-cfg.mfiles        = cfg.mfiles.split(',')
-cfg.num_neighbors = list(map(int, cfg.num_neighbors.split('-')))
+if isinstance(cfg.mfiles, str):
+    cfg.mfiles = cfg.mfiles.split(',')
+if isinstance(cfg.num_neighbors, str):
+    cfg.num_neighbors = list(map(int, cfg.num_neighbors.split('-')))
 
 # BSC Smoother spectral decay beta3
 cfg.beta3 = (
