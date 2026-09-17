@@ -738,56 +738,23 @@ class CoachForSTAIR_NE_NLGCL_v5_Plus(freerec.launcher.Coach):
         super().evaluate(epoch, mode=mode)
         if mode == 'valid':
             try:
-                meters = getattr(self, 'meters', None)
-                if meters is None and hasattr(self, 'monitor') and hasattr(self.monitor, 'meters'):
-                    meters = self.monitor.meters
+                if not hasattr(self, '_patience_counter'):
+                    self._patience_counter = 0
+                    self._best_ep = getattr(self, 'best_epoch', 0)
 
-                def get_val(name):
-                    if meters is not None:
-                        for k, v in meters.items():
-                            if name.lower() == k.lower() or name.lower() in k.lower():
-                                return getattr(v, 'avg', getattr(v, 'val', None))
-                    return None
-
-                r10 = get_val('Recall@10')
-                r20 = get_val('Recall@20')
-                n10 = get_val('NDCG@10')
-                n20 = get_val('NDCG@20')
-
-                if n20 is not None:
-                    save_dir = getattr(self.cfg, 'CHECKPOINT_PATH', getattr(self.cfg, 'root_dir', '.'))
-                    os.makedirs(save_dir, exist_ok=True)
-                    best_ckpt_path = os.path.join(save_dir, "best_model.pth")
-
-                    if n20 > self.best_ndcg20:
-                        self.best_ndcg20 = n20
-                        self.best_epoch = epoch
-                        self.patience_counter = 0
-                        torch.save({
-                            'epoch': epoch,
-                            'model_state_dict': self.model.state_dict(),
-                            'best_ndcg20': n20,
-                            'metrics': {'Recall@10': r10, 'Recall@20': r20, 'NDCG@10': n10, 'NDCG@20': n20}
-                        }, best_ckpt_path)
-                        r10_str = f"{r10:.4f}" if r10 is not None else "N/A"
-                        r20_str = f"{r20:.4f}" if r20 is not None else "N/A"
-                        n10_str = f"{n10:.4f}" if n10 is not None else "N/A"
+                cur_best_ep = getattr(self, 'best_epoch', 0)
+                if cur_best_ep == epoch:
+                    self._patience_counter = 0
+                    self._best_ep = epoch
+                else:
+                    self._patience_counter += 1
+                    patience = getattr(self.cfg, 'patience', 30)
+                    if self._patience_counter >= patience:
                         print(
-                            f"\n  🌟 [NEW BEST MODEL @Epoch {epoch:03d}] >>> NDCG@20: {n20:.4f} "
-                            f"(R@10: {r10_str} | R@20: {r20_str} | N@10: {n10_str}) -> {best_ckpt_path}\n"
+                            f"\n🛑 [EARLY STOPPING TRIGGERED] Kích hoạt dừng sớm sau {patience} lần đánh giá "
+                            f"không cải thiện {getattr(self.cfg, 'which4best', 'NDCG@20')} (Best Epoch: {self._best_ep}).\n"
                         )
-                    else:
-                        self.patience_counter += 1
-                        print(
-                            f"  ⏳ [Patience: {self.patience_counter}/{self.patience}] "
-                            f"Chưa có cải thiện NDCG@20 kể từ Epoch {self.best_epoch} (Best NDCG@20: {self.best_ndcg20:.4f})\n"
-                        )
-                        if self.patience_counter >= self.patience:
-                            print(
-                                f"\n🛑 [EARLY STOPPING TRIGGERED] Kích hoạt dừng sớm sau {self.patience} epochs "
-                                f"không cải thiện NDCG@20 (Best Epoch: {self.best_epoch}, Best NDCG@20: {self.best_ndcg20:.4f}).\n"
-                            )
-                            self.cfg.epochs = epoch + 1
+                        self.cfg.epochs = epoch + 1
             except Exception as e:
                 pass
 
@@ -814,6 +781,7 @@ def main():
             os.path.join("/kaggle/working/STAIR-Enhanced/data", cfg.dataset),
             os.path.join(script_dir, "data", cfg.dataset),
             os.path.join("data", cfg.dataset),
+            os.path.join("data/Processed", cfg.dataset),
         ]
         for cand in candidates:
             if os.path.exists(cand) and os.path.isdir(cand) and os.path.abspath(cand) != os.path.abspath(processed_dir) and len(os.listdir(cand)) > 0:
@@ -878,16 +846,21 @@ def main():
 
     coach.fit()
 
+    # FreeRec's coach.summary() (called automatically at the end of coach.fit())
+    # already restores the best model checkpoint (best.pt) and evaluates both VALID and TEST.
+    # We copy the best checkpoint to best_model.pth for compatibility:
     save_dir = getattr(cfg, 'CHECKPOINT_PATH', getattr(cfg, 'root_dir', '.'))
-    best_ckpt_path = os.path.join(save_dir, "best_model.pth")
-    if os.path.exists(best_ckpt_path):
-        print(f"\n[Coach] >>> Đang nạp lại checkpoint tối ưu nhất từ {best_ckpt_path} để đánh giá TEST...")
-        ckpt = torch.load(best_ckpt_path, map_location=cfg.device)
-        model.load_state_dict(ckpt['model_state_dict'])
-        print(f"[Coach] >>> Đã nạp thành công mô hình tối ưu tại Epoch {ckpt.get('epoch', 'N/A')} (NDCG@20 valid: {ckpt.get('best_ndcg20', 0):.4f})")
+    best_pt_path = os.path.join(save_dir, getattr(cfg, 'BEST_FILENAME', 'best.pt'))
+    best_pth_path = os.path.join(save_dir, "best_model.pth")
+    if os.path.exists(best_pt_path) and not os.path.exists(best_pth_path):
+        try:
+            import shutil
+            shutil.copy2(best_pt_path, best_pth_path)
+            print(f"[Coach] >>> Đã lưu bản sao mô hình tối ưu: {best_pth_path}")
+        except Exception:
+            pass
 
-    print("\n[Coach] >>> ĐÁNH GIÁ CHÍNH THỨC TRÊN TẬP TEST TẠI CHECKPOINT TỐI ƯU:")
-    coach.evaluate(epoch=getattr(coach, 'best_epoch', 0), mode='test')
+    print("\n[Coach] >>> HOÀN TẤT HUẤN LUYỆN VÀ ĐÁNH GIÁ TỐI ƯU THÀNH CÔNG (Exit Code: 0)!")
 
     if torch.cuda.is_available():
         max_alloc_mb = torch.cuda.max_memory_allocated() / (1024 ** 2)

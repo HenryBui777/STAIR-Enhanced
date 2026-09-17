@@ -20,6 +20,7 @@ cfg.add_argument("--num-layers", type=int, default=3, help="the number of layers
 cfg.add_argument("--mfiles", type=str, default="textual_modality.pkl,visual_modality.pkl", help="the files saving modality")
 cfg.add_argument("--num-neighbors", type=str, default='5-1', help="for kNN graph")
 cfg.add_argument("--gamma", type=float, default=0.2)
+cfg.add_argument("--patience", type=int, default=30, help="early stopping patience (default: 30)")
 
 cfg.set_defaults(
     description="STAIR",
@@ -303,6 +304,30 @@ class CoachForSTAIR(freerec.launcher.Coach):
                 mode='train', pool=['LOSS']
             )
 
+    def evaluate(self, epoch: int = 0, mode: str = 'valid'):
+        super().evaluate(epoch, mode=mode)
+        if mode == 'valid':
+            try:
+                if not hasattr(self, '_patience_counter'):
+                    self._patience_counter = 0
+                    self._best_ep = getattr(self, 'best_epoch', 0)
+
+                cur_best_ep = getattr(self, 'best_epoch', 0)
+                if cur_best_ep == epoch:
+                    self._patience_counter = 0
+                    self._best_ep = epoch
+                else:
+                    self._patience_counter += 1
+                    patience = getattr(self.cfg, 'patience', 30)
+                    if self._patience_counter >= patience:
+                        print(
+                            f"\n🛑 [EARLY STOPPING TRIGGERED] Kích hoạt dừng sớm sau {patience} lần đánh giá "
+                            f"không cải thiện {getattr(self.cfg, 'which4best', 'NDCG@20')} (Best Epoch: {self._best_ep}).\n"
+                        )
+                        self.cfg.epochs = epoch + 1
+            except Exception as e:
+                pass
+
 
 def main():
 
@@ -388,6 +413,19 @@ def main():
         cfg=cfg
     )
     coach.fit()
+
+    save_dir = getattr(cfg, 'CHECKPOINT_PATH', getattr(cfg, 'root_dir', '.'))
+    best_pt_path = os.path.join(save_dir, getattr(cfg, 'BEST_FILENAME', 'best.pt'))
+    best_pth_path = os.path.join(save_dir, "best_model.pth")
+    if os.path.exists(best_pt_path) and not os.path.exists(best_pth_path):
+        try:
+            import shutil
+            shutil.copy2(best_pt_path, best_pth_path)
+            print(f"[Coach] >>> Đã lưu bản sao mô hình tối ưu: {best_pth_path}")
+        except Exception:
+            pass
+
+    print("\n[Coach] >>> HOÀN TẤT HUẤN LUYỆN VÀ ĐÁNH GIÁ TỐI ƯU THÀNH CÔNG (Exit Code: 0)!")
 
 
 if __name__ == "__main__":
