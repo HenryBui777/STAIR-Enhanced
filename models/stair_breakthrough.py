@@ -16,6 +16,26 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+try:
+    from .stair_ne_nlgcl_v5_plus import STAIR_NE_NLGCL_v5_Plus
+except ImportError:
+    try:
+        from models.stair_ne_nlgcl_v5_plus import STAIR_NE_NLGCL_v5_Plus
+    except ImportError:
+        try:
+            from stair_ne_nlgcl_v5_plus import STAIR_NE_NLGCL_v5_Plus
+        except ImportError:
+            import importlib.util
+            import os
+            cand = os.path.join(os.path.dirname(__file__), "stair_ne_nlgcl_v5_plus.py")
+            if os.path.exists(cand):
+                spec = importlib.util.spec_from_file_location("stair_ne_nlgcl_v5_plus", cand)
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                STAIR_NE_NLGCL_v5_Plus = mod.STAIR_NE_NLGCL_v5_Plus
+            else:
+                raise ImportError("Cannot find stair_ne_nlgcl_v5_plus.py to import STAIR_NE_NLGCL_v5_Plus!")
+
 __all__ = [
     'STAIR_DAN_TANS_Module',
     'STAIR_DCD_Gated_Module',
@@ -75,6 +95,12 @@ class STAIR_DAN_TANS_Module(nn.Module):
             self.current_lambda = self.target_lambda * (float(epoch) / float(max(1, self.warmup_epochs)))
         else:
             self.current_lambda = self.target_lambda
+
+    def get_current_params(self) -> Tuple[float, float]:
+        return self.gamma_base, self.current_lambda
+
+    def get_current_hans_params(self) -> Tuple[float, float]:
+        return self.gamma_base, self.current_lambda
 
     def get_adaptive_eps(self, degrees: torch.Tensor) -> torch.Tensor:
         """
@@ -180,48 +206,40 @@ class STAIR_DAN_TANS_Module(nn.Module):
 # ═════════════════════════════════════════════════════════════════════════════
 # METHOD 2: DCD-GATED (Dual-Consensus Denoising & Gated Residuals)
 # ═════════════════════════════════════════════════════════════════════════════
-class STAIR_DCD_Gated_Module(nn.Module):
+class STAIR_DCD_Gated_Module(STAIR_NE_NLGCL_v5_Plus):
     """
     Làm dày cạnh an toàn có cổng Gating chống suy thoái trên Baby:
     - Ma trận cạnh ảo S_conf chỉ được kết nối khi có sự đồng thuận giữa:
       Hành vi đồng mua (Ochiai Co-purchase) x Tương đồng đặc trưng ảnh/văn bản.
     - Kênh cập nhật thặng dư đi qua cổng Gating phi tuyến g = sigmoid(W_g [H1 || S_conf H0]).
       Nếu cạnh ảo bị nhiễu (như trên Baby), mạng tự động ép g -> 0 (an toàn 100%).
+    - Kế thừa toàn bộ InfoNCE Contrastive Loss của STAIR-NE-NLGCL v5+ (Linear HANS + Hard MFNA).
     """
     def __init__(
         self,
-        n_users: int,
-        n_items: int,
-        embedding_dim: int = 64,
+        n_users: Optional[int] = None,
+        n_items: Optional[int] = None,
+        embedding_dim: int = 256,
         tau: float = 0.20,
+        alpha_dir: float = 0.50,
         eps: float = 0.08,
         tau_thresh: float = 0.85,
         lambda_cl: float = 0.010,
         gamma_h: float = 0.15,
         warmup_epochs: int = 50,
     ):
-        super().__init__()
-        self.n_users = n_users
-        self.n_items = n_items
-        self.tau = tau
-        self.eps = eps
-        self.tau_thresh = tau_thresh
-        self.target_lambda = lambda_cl
-        self.gamma_h = gamma_h
-        self.warmup_epochs = warmup_epochs
-
-        self.current_epoch = 0
-        self.current_lambda = 0.0
-
-        # Van Gating an toàn (Dynamic Safety Gate)
+        super().__init__(
+            n_users       = n_users,
+            n_items       = n_items,
+            tau           = tau,
+            alpha_dir     = alpha_dir,
+            eps           = eps,
+            tau_thresh    = tau_thresh,
+            lambda_cl     = lambda_cl,
+            gamma_h       = gamma_h,
+            warmup_epochs = warmup_epochs,
+        )
         self.gate_fc = nn.Linear(embedding_dim * 2, embedding_dim)
-
-    def update_epoch(self, epoch: int):
-        self.current_epoch = epoch
-        if epoch <= self.warmup_epochs:
-            self.current_lambda = self.target_lambda * (float(epoch) / float(max(1, self.warmup_epochs)))
-        else:
-            self.current_lambda = self.target_lambda
 
     def forward_gated_items(
         self,
@@ -237,11 +255,27 @@ class STAIR_DCD_Gated_Module(nn.Module):
         gate = torch.sigmoid(self.gate_fc(gate_input))
         return item_h1 + gate * virtual_h
 
+    def forward(
+        self,
+        layer_embeds: List[torch.Tensor],
+        users: torch.Tensor,
+        positives: torch.Tensor,
+        beta: torch.Tensor,
+        item_modals: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, float]:
+        return super().forward(
+            layer_embeds=layer_embeds,
+            users=users,
+            positives=positives,
+            beta=beta,
+            item_modals=item_modals,
+        )
+
 
 # ═════════════════════════════════════════════════════════════════════════════
 # METHOD 3: APPNP-CROSSMODAL (APPNP-Restart Propagation & Disentangled CL)
 # ═════════════════════════════════════════════════════════════════════════════
-class STAIR_APPNP_CrossModal_Module(nn.Module):
+class STAIR_APPNP_CrossModal_Module(STAIR_NE_NLGCL_v5_Plus):
     """
     1. APPNP-Restart Convolution:
        H^(l) = (1 - alpha_restart) * (Adj @ H^(l-1) * beta) + alpha_restart * H^(0)
@@ -249,36 +283,40 @@ class STAIR_APPNP_CrossModal_Module(nn.Module):
     2. Disentangled Cross-Modal Contrastive Alignment:
        Kéo gần trực tiếp User Embedding H_u^(0) với Modal Feature M_i^(pos)
        mà không nhét thêm bất kỳ cạnh bẩn nào vào đồ thị hành vi.
+    3. Kế thừa toàn bộ InfoNCE Contrastive Loss của STAIR-NE-NLGCL v5+.
     """
     def __init__(
         self,
-        n_users: int,
-        n_items: int,
+        n_users: Optional[int] = None,
+        n_items: Optional[int] = None,
         tau: float = 0.20,
+        alpha_dir: float = 0.50,
         eps: float = 0.08,
+        tau_thresh: float = 0.85,
         lambda_cl: float = 0.010,
         lambda_cross: float = 0.005,
         alpha_restart: float = 0.15,
+        gamma_h: float = 0.15,
         warmup_epochs: int = 50,
     ):
-        super().__init__()
-        self.n_users = n_users
-        self.n_items = n_items
-        self.tau = tau
-        self.eps = eps
-        self.target_lambda = lambda_cl
+        super().__init__(
+            n_users       = n_users,
+            n_items       = n_items,
+            tau           = tau,
+            alpha_dir     = alpha_dir,
+            eps           = eps,
+            tau_thresh    = tau_thresh,
+            lambda_cl     = lambda_cl,
+            gamma_h       = gamma_h,
+            warmup_epochs = warmup_epochs,
+        )
         self.target_lambda_cross = lambda_cross
         self.alpha_restart = alpha_restart
-        self.warmup_epochs = warmup_epochs
-
-        self.current_epoch = 0
-        self.current_lambda = 0.0
         self.current_lambda_cross = 0.0
 
     def update_epoch(self, epoch: int):
-        self.current_epoch = epoch
+        super().update_epoch(epoch)
         ratio = float(min(epoch, self.warmup_epochs)) / float(max(1, self.warmup_epochs))
-        self.current_lambda = self.target_lambda * ratio
         self.current_lambda_cross = self.target_lambda_cross * ratio
 
     def forward_cross_modal(
@@ -296,3 +334,19 @@ class STAIR_APPNP_CrossModal_Module(nn.Module):
         all_sim = torch.matmul(u_b, m_pos.t()) / self.tau
         loss_cross = -(pos_sim - torch.logsumexp(all_sim, dim=-1)).mean()
         return self.current_lambda_cross * loss_cross
+
+    def forward(
+        self,
+        layer_embeds: List[torch.Tensor],
+        users: torch.Tensor,
+        positives: torch.Tensor,
+        beta: torch.Tensor,
+        item_modals: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, float]:
+        return super().forward(
+            layer_embeds=layer_embeds,
+            users=users,
+            positives=positives,
+            beta=beta,
+            item_modals=item_modals,
+        )

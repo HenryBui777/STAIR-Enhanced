@@ -284,6 +284,7 @@ class STAIR_NE_NLGCL_v5_Plus_Model(freerec.models.GenRecArch):
             )
 
         self.last_cl_loss: Optional[float] = None
+        self.s_conf_sparse: Optional[torch.Tensor] = None
 
     def reset_parameters(self):
         for m in self.modules():
@@ -398,6 +399,41 @@ class STAIR_NE_NLGCL_v5_Plus_Model(freerec.models.GenRecArch):
         # Register raw modal features for In-batch Dynamic False Negative Attenuation
         self.register_buffer('item_modals_raw', mfeats_init.detach().clone())
 
+        # ── Setup Bổ sung cho từng Method ──
+        raw_edge_ui = self.dataset.train().to_bigraph(edge_type='u2i')['u2i'].edge_index
+        u_deg = raw_edge_ui[0].bincount(minlength=self.User.count).to(cfg.device)
+        i_deg = raw_edge_ui[1].bincount(minlength=self.Item.count).to(cfg.device)
+
+        if cfg.method == 'dan_tans' and hasattr(self.ne_nlgcl_v5_plus, 'set_degrees'):
+            self.ne_nlgcl_v5_plus.set_degrees(u_deg, i_deg)
+        elif cfg.method == 'dcd_gated':
+            with torch.no_grad():
+                i_norm = F.normalize(mfeats_init, p=2, dim=-1).to(cfg.device)
+                sim_m = torch.clamp(torch.matmul(i_norm, i_norm.t()), min=0.0)
+                # Ochiai co-purchase
+                R_t = torch.sparse_coo_tensor(
+                    raw_edge_ui, torch.ones_like(raw_edge_ui[0], dtype=torch.float),
+                    size=(self.User.count, self.Item.count)
+                ).to(cfg.device)
+                co_matrix = torch.sparse.mm(R_t.t(), R_t).to_dense()
+                co_deg = torch.sqrt(i_deg.unsqueeze(1) * i_deg.unsqueeze(0)).clamp(min=1.0)
+                ochiai = co_matrix / co_deg
+                # Dual Consensus
+                consensus = ochiai * sim_m
+                consensus.fill_diagonal_(0.0)
+                topk_val, topk_idx = torch.topk(consensus, k=3, dim=-1)
+                mask = topk_val > 0.05
+                row_idx = torch.arange(self.Item.count, device=cfg.device).unsqueeze(1).repeat(1, 3)[mask]
+                col_idx = topk_idx[mask]
+                edge_val = topk_val[mask]
+                if len(edge_val) > 0:
+                    conf_idx = torch.stack([row_idx, col_idx], dim=0)
+                    conf_idx, edge_val = freerec.graph.to_normalized(conf_idx, edge_val, normalization='sym')
+                    self.s_conf_sparse = torch.sparse_coo_tensor(
+                        conf_idx, edge_val, size=(self.Item.count, self.Item.count)
+                    ).coalesce()
+                    print(f"[{cfg.dataset}] ✅ DCD-Gated: Khởi tạo thành công {len(edge_val)} cạnh ảo đồng thuận cao.")
+
     def sure_trainpipe(self, batch_size: int):
         return (
             self.dataset.train()
@@ -426,9 +462,13 @@ class STAIR_NE_NLGCL_v5_Plus_Model(freerec.models.GenRecArch):
 
         beta = (1.0 - self.beta3).to(allEmbds.device)
         norm_correction = 1.0 - beta ** (self.num_layers + 1)
+        alpha_restart = getattr(self.ne_nlgcl_v5_plus, 'alpha_restart', 0.0) if cfg.method == 'appnp_crossmodal' else 0.0
 
         for _ in range(self.num_layers):
-            features = self.Adj @ features * beta
+            if alpha_restart > 0.0:
+                features = (1.0 - alpha_restart) * (self.Adj @ features * beta) + alpha_restart * allEmbds
+            else:
+                features = self.Adj @ features * beta
             smoothed = smoothed + features
             layer_embeds.append(features)
 
@@ -436,6 +476,15 @@ class STAIR_NE_NLGCL_v5_Plus_Model(freerec.models.GenRecArch):
         userEmbds, itemEmbds = torch.split(
             avgEmbds, (self.User.count, self.Item.count)
         )
+
+        # Gated refinement cho DCD-Gated
+        if cfg.method == 'dcd_gated' and hasattr(self, 's_conf_sparse') and self.s_conf_sparse is not None:
+            if hasattr(self.ne_nlgcl_v5_plus, 'forward_gated_items'):
+                U_0, I_0 = torch.split(layer_embeds[0], [self.User.count, self.Item.count])
+                U_1, I_1 = torch.split(layer_embeds[1], [self.User.count, self.Item.count])
+                I_1_refined = self.ne_nlgcl_v5_plus.forward_gated_items(I_0, I_1, self.s_conf_sparse)
+                layer_embeds[1] = torch.cat([U_1, I_1_refined], dim=0)
+
         return userEmbds, itemEmbds, layer_embeds
 
     def encode_for_eval(self) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -448,16 +497,22 @@ class STAIR_NE_NLGCL_v5_Plus_Model(freerec.models.GenRecArch):
         smoothed = allEmbds
         beta = (1.0 - self.beta3).to(allEmbds.device)
         norm_correction = 1.0 - beta ** (self.num_layers + 1)
+        alpha_restart = getattr(self.ne_nlgcl_v5_plus, 'alpha_restart', 0.0) if cfg.method == 'appnp_crossmodal' else 0.0
+
         for _ in range(self.num_layers):
-            features = self.Adj @ features * beta
+            if alpha_restart > 0.0:
+                features = (1.0 - alpha_restart) * (self.Adj @ features * beta) + alpha_restart * allEmbds
+            else:
+                features = self.Adj @ features * beta
             smoothed = smoothed + features
+
         avgEmbds = smoothed.mul(1.0 - beta).div(norm_correction)
         return torch.split(avgEmbds, (self.User.count, self.Item.count))
 
     def fit(self, data: Dict[freerec.data.fields.Field, torch.Tensor]):
         """
         Training step:
-        L_total = L_BPR + lambda_cl(t) * L_NE-NLGCL_v5+
+        L_total = L_BPR + lambda_cl(t) * L_NE-NLGCL_v5+ (+ L_cross nếu APPNP)
         """
         userEmbds, itemEmbds, layer_embeds = self.encode()
 
@@ -471,10 +526,22 @@ class STAIR_NE_NLGCL_v5_Plus_Model(freerec.models.GenRecArch):
             torch.einsum('BKD,BKD->BK', userEmbds[users], itemEmbds[negatives]),
         )
 
-        # 2. STAIR-NE-NLGCL v5+ Contrastive Loss
+        # 2. STAIR-NE-NLGCL v5+ / Breakthrough Contrastive Loss
         if self.training:
             beta = (1.0 - self.beta3).to(userEmbds.device)
             i_mod = self.item_modals_raw if hasattr(self, 'item_modals_raw') else None
+
+            if cfg.method == 'appnp_crossmodal' and hasattr(self.ne_nlgcl_v5_plus, 'forward_cross_modal') and i_mod is not None:
+                cross_loss = self.ne_nlgcl_v5_plus.forward_cross_modal(userEmbds, i_mod, users, positives)
+                weighted_cl_loss, raw_cl_loss = self.ne_nlgcl_v5_plus(
+                    layer_embeds = layer_embeds,
+                    users        = users,
+                    positives    = positives,
+                    beta         = beta,
+                    item_modals  = i_mod,
+                )
+                self.last_cl_loss = raw_cl_loss
+                return rec_loss + weighted_cl_loss + cross_loss
 
             weighted_cl_loss, raw_cl_loss = self.ne_nlgcl_v5_plus(
                 layer_embeds = layer_embeds,
@@ -744,6 +811,17 @@ def main():
         torch.cuda.reset_peak_memory_stats()
 
     coach.fit()
+
+    save_dir = getattr(cfg, 'CHECKPOINT_PATH', getattr(cfg, 'root_dir', '.'))
+    best_ckpt_path = os.path.join(save_dir, "best_model.pth")
+    if os.path.exists(best_ckpt_path):
+        print(f"\n[Coach] >>> Đang nạp lại checkpoint tối ưu nhất từ {best_ckpt_path} để đánh giá TEST...")
+        ckpt = torch.load(best_ckpt_path, map_location=cfg.device)
+        model.load_state_dict(ckpt['model_state_dict'])
+        print(f"[Coach] >>> Đã nạp thành công mô hình tối ưu tại Epoch {ckpt.get('epoch', 'N/A')} (NDCG@20 valid: {ckpt.get('best_ndcg20', 0):.4f})")
+
+    print("\n[Coach] >>> ĐÁNH GIÁ CHÍNH THỨC TRÊN TẬP TEST TẠI CHECKPOINT TỐI ƯU:")
+    coach.evaluate(epoch=getattr(coach, 'best_epoch', 0), mode='test')
 
     if torch.cuda.is_available():
         max_alloc_mb = torch.cuda.max_memory_allocated() / (1024 ** 2)
