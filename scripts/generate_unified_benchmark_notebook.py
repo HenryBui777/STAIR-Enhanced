@@ -587,7 +587,50 @@ cell3_source = [
     "        os.makedirs(os.path.dirname(output_filename), exist_ok=True)\n",
     "        plt.savefig(output_filename, dpi=180, bbox_inches='tight')\n",
     "        print(f\"  [Saved] Figure exported to: {output_filename}\")\n",
-    "    plt.show()\n"
+    "    plt.show()\n",
+    "\n",
+    "def summarize_and_export_single_dataset(key, configs, output_csv=None):\n",
+    "    dname = key.upper()\n",
+    "    ref_64_n20 = PAPER_BENCHMARKS[key]['NDCG@20']\n",
+    "    table = PrettyTable()\n",
+    "    table.field_names = ['Tập dữ liệu', 'Phương pháp', 'Số chiều', 'Recall@10', 'Recall@20', 'NDCG@10', 'NDCG@20', 'Δ vs Base 64D', 'Δ vs Base 256D']\n",
+    "    table.align = 'l'\n",
+    "    base_256_n20 = None\n",
+    "    for method_name, dim, log_p, fallback in configs:\n",
+    "        if 'Baseline' in method_name and dim == '256D':\n",
+    "            if log_p and os.path.exists(log_p):\n",
+    "                _, m = extract_best_test(log_p)\n",
+    "                if m and 'NDCG@20' in m: base_256_n20 = m['NDCG@20']\n",
+    "    rows = []\n",
+    "    for method_name, dim, log_p, fallback in configs:\n",
+    "        ep_found, m_found = None, {}\n",
+    "        if log_p and os.path.exists(log_p):\n",
+    "            ep_found, m_found = extract_best_test(log_p)\n",
+    "        if not (m_found and len(m_found) >= 4) and fallback:\n",
+    "            m_found = fallback; ep_found = 'Paper'\n",
+    "        if m_found and len(m_found) >= 4:\n",
+    "            r10, r20 = m_found['Recall@10'], m_found['Recall@20']\n",
+    "            n10, n20 = m_found['NDCG@10'], m_found['NDCG@20']\n",
+    "            d_64_str = '-'\n",
+    "            if not ('Baseline' in method_name and dim == '64D'):\n",
+    "                gain_64 = (n20 - ref_64_n20) / ref_64_n20 * 100\n",
+    "                d_64_str = f\"{'+' if gain_64 >= 0 else ''}{gain_64:.2f}%\"\n",
+    "            d_256_str = '-'\n",
+    "            if 'DCD-Gated' in method_name and dim == '256D' and base_256_n20 is not None:\n",
+    "                gain_256 = (n20 - base_256_n20) / base_256_n20 * 100\n",
+    "                d_256_str = f\"{'+' if gain_256 >= 0 else ''}{gain_256:.2f}%\"\n",
+    "            ep_tag = f\" [@Ep{ep_found}]\" if (ep_found and ep_found != 'Paper') else \"\"\n",
+    "            table.add_row([dname, f\"{method_name}{ep_tag}\", dim, f\"{r10:.4f}\", f\"{r20:.4f}\", f\"{n10:.4f}\", f\"{n20:.4f}\", d_64_str, d_256_str])\n",
+    "            rows.append({'Dataset': dname, 'Method': method_name, 'Epoch': ep_found, 'Dimension': dim, 'Recall@10': r10, 'Recall@20': r20, 'NDCG@10': n10, 'NDCG@20': n20, 'Delta_vs_Base64D': d_64_str, 'Delta_vs_Base256D': d_256_str})\n",
+    "        else:\n",
+    "            table.add_row([dname, f\"{method_name} (Chưa chạy)\", dim, '-', '-', '-', '-', '-', '-'])\n",
+    "    print(f'\\n📊 KẾT QUẢ THỰC NGHIỆM CHI TIẾT — {dname}:')\n",
+    "    print(table)\n",
+    "    if output_csv and rows:\n",
+    "        os.makedirs(os.path.dirname(output_csv), exist_ok=True)\n",
+    "        pd.DataFrame(rows).to_csv(output_csv, index=False, encoding='utf-8')\n",
+    "        print(f'✅ [ĐÃ XUẤT CSV TẬP {dname}]: {output_csv}')\n",
+    "    return rows\n"
 ]
 
 # Cell 4: Markdown — Phase 1: Amazon Baby
@@ -633,15 +676,26 @@ cell5_source = [
     "                         method='dcd_gated', epochs=500, embedding_dim=256, batch_size=1024, patience=30)\n"
 ]
 
-# Cell 6: Code — Plot Baby Dynamics
+# Cell 6: Code — Plot Baby Dynamics & Export CSV
 cell6_source = [
-    "# Cell 6: Đồ Thị Learning Dynamics & VRAM Utilization — Amazon Baby\n",
+    "# Cell 6: Đồ Thị Learning Dynamics, VRAM & Xuất CSV — Amazon Baby\n",
     "baby_logs = {\n",
     "    '64d_gated':  '/kaggle/working/logs/benchmark/baby/baby_dcd_gated_dim64.log',\n",
     "    '256d_base':  '/kaggle/working/logs/benchmark/baby/baby_stair_baseline_dim256.log',\n",
     "    '256d_gated': '/kaggle/working/logs/benchmark/baby/baby_dcd_gated_dim256.log',\n",
     "}\n",
-    "plot_single_dataset_learning_curves('baby', baby_logs, '/kaggle/working/reports/learning_curve_baby.png')\n"
+    "# 1. Xuất bảng số liệu và lưu CSV cho Amazon Baby\n",
+    "baby_configs = [\n",
+    "    ('STAIR Baseline (Paper Table 2)', '64D', None, PAPER_BENCHMARKS['baby']),\n",
+    "    ('★ STAIR DCD-Gated',              '64D', baby_logs['64d_gated'], None),\n",
+    "    ('STAIR Baseline',                 '256D', baby_logs['256d_base'], None),\n",
+    "    ('★ STAIR DCD-Gated SOTA',         '256D', baby_logs['256d_gated'], None),\n",
+    "]\n",
+    "summarize_and_export_single_dataset('baby', baby_configs, '/kaggle/working/reports/results_baby.csv')\n",
+    "\n",
+    "# 2. Vẽ 4-panel Learning Dynamics & VRAM cho Amazon Baby\n",
+    "plot_single_dataset_learning_curves('baby', baby_logs, '/kaggle/working/reports/learning_curve_baby.png')\n",
+    "print('📁 [SẴN SÀNG TẢI VỀ BABY]: /kaggle/working/reports/results_baby.csv và learning_curve_baby.png')\n"
 ]
 
 # Cell 7: Markdown — Phase 2: Amazon Sports
@@ -687,15 +741,26 @@ cell8_source = [
     "                         method='dcd_gated', epochs=500, embedding_dim=256, batch_size=2048, patience=30)\n"
 ]
 
-# Cell 9: Code — Plot Sports Dynamics
+# Cell 9: Code — Plot Sports Dynamics & Export CSV
 cell9_source = [
-    "# Cell 9: Đồ Thị Learning Dynamics & VRAM Utilization — Amazon Sports\n",
+    "# Cell 9: Đồ Thị Learning Dynamics, VRAM & Xuất CSV — Amazon Sports\n",
     "sports_logs = {\n",
     "    '64d_gated':  '/kaggle/working/logs/benchmark/sports/sports_dcd_gated_dim64.log',\n",
     "    '256d_base':  '/kaggle/working/logs/benchmark/sports/sports_stair_baseline_dim256.log',\n",
     "    '256d_gated': '/kaggle/working/logs/benchmark/sports/sports_dcd_gated_dim256.log',\n",
     "}\n",
-    "plot_single_dataset_learning_curves('sports', sports_logs, '/kaggle/working/reports/learning_curve_sports.png')\n"
+    "# 1. Xuất bảng số liệu và lưu CSV cho Amazon Sports\n",
+    "sports_configs = [\n",
+    "    ('STAIR Baseline (Paper Table 2)', '64D', None, PAPER_BENCHMARKS['sports']),\n",
+    "    ('★ STAIR DCD-Gated',              '64D', sports_logs['64d_gated'], None),\n",
+    "    ('STAIR Baseline',                 '256D', sports_logs['256d_base'], None),\n",
+    "    ('★ STAIR DCD-Gated SOTA',         '256D', sports_logs['256d_gated'], None),\n",
+    "]\n",
+    "summarize_and_export_single_dataset('sports', sports_configs, '/kaggle/working/reports/results_sports.csv')\n",
+    "\n",
+    "# 2. Vẽ 4-panel Learning Dynamics & VRAM cho Amazon Sports\n",
+    "plot_single_dataset_learning_curves('sports', sports_logs, '/kaggle/working/reports/learning_curve_sports.png')\n",
+    "print('📁 [SẴN SÀNG TẢI VỀ SPORTS]: /kaggle/working/reports/results_sports.csv và learning_curve_sports.png')\n"
 ]
 
 # Cell 10: Markdown — Phase 3: Amazon Electronics
@@ -703,14 +768,10 @@ cell10_source = [
     "## 🏋️ PHA 3: THỰC NGHIỆM ĐỐI CHUẨN TRÊN AMAZON ELECTRONICS\n",
     "### Quy mô: 192,403 Users | 63,001 Items | 1.69M Interactions | Độ thưa 99.986%\n",
     "---\n",
-    "Thực nghiệm quy mô lớn với cơ chế Chunked Zero-OOM DCD Engine (Batch 4096, $\\gamma=0.4$ theo chuẩn Paper Table 4):\n",
-    "1. **`electronics_dcd_gated_dim64`**: DCD-Gated ở không gian 64D.\n",
-    "2. **`electronics_stair_baseline_dim256`**: STAIR Baseline mở rộng lên 256 chiều.\n",
-    "3. **`electronics_dcd_gated_dim256`**: DCD-Gated ở không gian 256 chiều.\n",
-    "*(Mốc tham chiếu Paper Table 2: Baseline 64D đạt Recall@10=0.0440, Recall@20=0.0663, NDCG@10=0.0245, NDCG@20=0.0302)*."
+    "> **Trạng thái:** *Đang tạm khóa để ưu tiên chạy tập Baby và Sports trước. Khi nào cần chạy, bạn chỉ việc mở comment ở Cell 11.*"
 ]
 
-# Cell 11: Code — Execute Amazon Electronics
+# Cell 11: Code — Execute Amazon Electronics (Commented out by default)
 cell11_source = [
     "# Cell 11: Huấn luyện Amazon Electronics (64D Gated, 256D Baseline, 256D Gated)\n",
     "DATA_ROOT = '/kaggle/data'\n",
@@ -718,38 +779,53 @@ cell11_source = [
     "LOG_DIR_ELEC = '/kaggle/working/logs/benchmark/electronics'\n",
     "os.makedirs(LOG_DIR_ELEC, exist_ok=True)\n",
     "\n",
-    "RUN_ELEC_64_GATED  = True\n",
-    "RUN_ELEC_256_BASE  = True\n",
-    "RUN_ELEC_256_GATED = True\n",
+    "# [TẠM KHÓA THEO YÊU CẦU]: Ưu tiên chạy Baby và Sports trước. Mở comment khi muốn chạy Electronics.\n",
+    "RUN_ELEC_64_GATED  = False\n",
+    "RUN_ELEC_256_BASE  = False\n",
+    "RUN_ELEC_256_GATED = False\n",
     "\n",
     "# 1. Electronics DCD-Gated 64D\n",
-    "log_e_64g = os.path.join(LOG_DIR_ELEC, 'electronics_dcd_gated_dim64.log')\n",
-    "if RUN_ELEC_64_GATED:\n",
-    "    run_training_v5_plus(key='electronics', yaml_cfg=YAML_ELEC, data_root=DATA_ROOT, log_path=log_e_64g,\n",
-    "                         method='dcd_gated', epochs=500, embedding_dim=64, batch_size=4096, patience=30)\n",
+    "# log_e_64g = os.path.join(LOG_DIR_ELEC, 'electronics_dcd_gated_dim64.log')\n",
+    "# if RUN_ELEC_64_GATED:\n",
+    "#     run_training_v5_plus(key='electronics', yaml_cfg=YAML_ELEC, data_root=DATA_ROOT, log_path=log_e_64g,\n",
+    "#                          method='dcd_gated', epochs=500, embedding_dim=64, batch_size=4096, patience=30)\n",
     "\n",
     "# 2. Electronics Baseline 256D\n",
-    "log_e_256b = os.path.join(LOG_DIR_ELEC, 'electronics_stair_baseline_dim256.log')\n",
-    "if RUN_ELEC_256_BASE:\n",
-    "    run_stair_baseline(key='electronics', yaml_cfg=YAML_ELEC, data_root=DATA_ROOT, log_path=log_e_256b,\n",
-    "                       epochs=500, embedding_dim=256, batch_size=4096, patience=30)\n",
+    "# log_e_256b = os.path.join(LOG_DIR_ELEC, 'electronics_stair_baseline_dim256.log')\n",
+    "# if RUN_ELEC_256_BASE:\n",
+    "#     run_stair_baseline(key='electronics', yaml_cfg=YAML_ELEC, data_root=DATA_ROOT, log_path=log_e_256b,\n",
+    "#                        epochs=500, embedding_dim=256, batch_size=4096, patience=30)\n",
     "\n",
     "# 3. Electronics DCD-Gated 256D\n",
-    "log_e_256g = os.path.join(LOG_DIR_ELEC, 'electronics_dcd_gated_dim256.log')\n",
-    "if RUN_ELEC_256_GATED:\n",
-    "    run_training_v5_plus(key='electronics', yaml_cfg=YAML_ELEC, data_root=DATA_ROOT, log_path=log_e_256g,\n",
-    "                         method='dcd_gated', epochs=500, embedding_dim=256, batch_size=4096, patience=30)\n"
+    "# log_e_256g = os.path.join(LOG_DIR_ELEC, 'electronics_dcd_gated_dim256.log')\n",
+    "# if RUN_ELEC_256_GATED:\n",
+    "#     run_training_v5_plus(key='electronics', yaml_cfg=YAML_ELEC, data_root=DATA_ROOT, log_path=log_e_256g,\n",
+    "#                          method='dcd_gated', epochs=500, embedding_dim=256, batch_size=4096, patience=30)\n",
+    "\n",
+    "print('⏸️ [TẠM BỎ QUA] Amazon Electronics đã được comment lại theo yêu cầu (ưu tiên Baby & Sports).')\n"
 ]
 
-# Cell 12: Code — Plot Electronics Dynamics
+# Cell 12: Code — Plot Electronics Dynamics & Export CSV (Safe Execution)
 cell12_source = [
-    "# Cell 12: Đồ Thị Learning Dynamics & VRAM Utilization — Amazon Electronics\n",
+    "# Cell 12: Đồ Thị Learning Dynamics, VRAM & Xuất CSV — Amazon Electronics\n",
     "elec_logs = {\n",
     "    '64d_gated':  '/kaggle/working/logs/benchmark/electronics/electronics_dcd_gated_dim64.log',\n",
     "    '256d_base':  '/kaggle/working/logs/benchmark/electronics/electronics_stair_baseline_dim256.log',\n",
     "    '256d_gated': '/kaggle/working/logs/benchmark/electronics/electronics_dcd_gated_dim256.log',\n",
     "}\n",
-    "plot_single_dataset_learning_curves('electronics', elec_logs, '/kaggle/working/reports/learning_curve_electronics.png')\n"
+    "has_elec_log = any(os.path.exists(p) for p in elec_logs.values())\n",
+    "if has_elec_log:\n",
+    "    elec_configs = [\n",
+    "        ('STAIR Baseline (Paper Table 2)', '64D', None, PAPER_BENCHMARKS['electronics']),\n",
+    "        ('★ STAIR DCD-Gated',              '64D', elec_logs['64d_gated'], None),\n",
+    "        ('STAIR Baseline',                 '256D', elec_logs['256d_base'], None),\n",
+    "        ('★ STAIR DCD-Gated SOTA',         '256D', elec_logs['256d_gated'], None),\n",
+    "    ]\n",
+    "    summarize_and_export_single_dataset('electronics', elec_configs, '/kaggle/working/reports/results_electronics.csv')\n",
+    "    plot_single_dataset_learning_curves('electronics', elec_logs, '/kaggle/working/reports/learning_curve_electronics.png')\n",
+    "    print('📁 [SẴN SÀNG TẢI VỀ ELECTRONICS]: /kaggle/working/reports/results_electronics.csv và learning_curve_electronics.png')\n",
+    "else:\n",
+    "    print('⏸️ [THÔNG BÁO] Amazon Electronics chưa chạy (Đang tạm khóa). Bỏ qua vẽ hình tập này.')\n"
 ]
 
 # Cell 13: Markdown — Phase 4: Amazon Clothing
@@ -757,15 +833,10 @@ cell13_source = [
     "## 🏋️ PHA 4: THỰC NGHIỆM ĐỐI CHUẨN TRÊN AMAZON CLOTHING\n",
     "### Quy mô: 39,387 Users | 23,033 Items | 278K Interactions | Độ thưa 99.97%\n",
     "---\n",
-    "Chạy trọn vẹn 4 cấu hình đối chuẩn khoa học trên tập thời trang Clothing:\n",
-    "1. **`clothing_stair_baseline_dim64`**: STAIR Baseline chuẩn 64 chiều.\n",
-    "2. **`clothing_dcd_gated_dim64`**: STAIR DCD-Gated 64 chiều.\n",
-    "3. **`clothing_stair_baseline_dim256`**: STAIR Baseline 256 chiều.\n",
-    "4. **`clothing_dcd_gated_dim256`**: STAIR DCD-Gated 256 chiều.\n",
-    "*(Mốc tham chiếu thực nghiệm đã xác thực trên Kaggle: Baseline 64D @Ep205 đạt Recall@10=0.0596, Recall@20=0.0896, NDCG@10=0.0321, NDCG@20=0.0398)*."
+    "> **Trạng thái:** *Đang tạm khóa để ưu tiên chạy tập Baby và Sports trước. Khi nào cần chạy, bạn chỉ việc mở comment ở Cell 14.*"
 ]
 
-# Cell 14: Code — Execute Amazon Clothing
+# Cell 14: Code — Execute Amazon Clothing (Commented out by default)
 cell14_source = [
     "# Cell 14: Huấn luyện Amazon Clothing (64D Base, 64D Gated, 256D Base, 256D Gated)\n",
     "DATA_ROOT = '/kaggle/data'\n",
@@ -773,54 +844,71 @@ cell14_source = [
     "LOG_DIR_CLOTH = '/kaggle/working/logs/benchmark/clothing'\n",
     "os.makedirs(LOG_DIR_CLOTH, exist_ok=True)\n",
     "\n",
-    "RUN_CLOTH_64_BASE   = True # Đặt False nếu bạn muốn dùng lại kết quả checkpoint @Ep205 (NDCG@20=0.0398)\n",
-    "RUN_CLOTH_64_GATED  = True\n",
-    "RUN_CLOTH_256_BASE  = True\n",
-    "RUN_CLOTH_256_GATED = True\n",
+    "# [TẠM KHÓA THEO YÊU CẦU]: Ưu tiên chạy Baby và Sports trước. Mở comment khi muốn chạy Clothing.\n",
+    "RUN_CLOTH_64_BASE   = False\n",
+    "RUN_CLOTH_64_GATED  = False\n",
+    "RUN_CLOTH_256_BASE  = False\n",
+    "RUN_CLOTH_256_GATED = False\n",
     "\n",
     "# 1. Clothing Baseline 64D\n",
-    "log_c_64b = os.path.join(LOG_DIR_CLOTH, 'clothing_stair_baseline_dim64.log')\n",
-    "if RUN_CLOTH_64_BASE:\n",
-    "    run_stair_baseline(key='clothing', yaml_cfg=YAML_CLOTH, data_root=DATA_ROOT, log_path=log_c_64b,\n",
-    "                       epochs=500, embedding_dim=64, batch_size=2048, patience=30)\n",
+    "# log_c_64b = os.path.join(LOG_DIR_CLOTH, 'clothing_stair_baseline_dim64.log')\n",
+    "# if RUN_CLOTH_64_BASE:\n",
+    "#     run_stair_baseline(key='clothing', yaml_cfg=YAML_CLOTH, data_root=DATA_ROOT, log_path=log_c_64b,\n",
+    "#                        epochs=500, embedding_dim=64, batch_size=2048, patience=30)\n",
     "\n",
     "# 2. Clothing DCD-Gated 64D\n",
-    "log_c_64g = os.path.join(LOG_DIR_CLOTH, 'clothing_dcd_gated_dim64.log')\n",
-    "if RUN_CLOTH_64_GATED:\n",
-    "    run_training_v5_plus(key='clothing', yaml_cfg=YAML_CLOTH, data_root=DATA_ROOT, log_path=log_c_64g,\n",
-    "                         method='dcd_gated', epochs=500, embedding_dim=64, batch_size=2048, patience=30)\n",
+    "# log_c_64g = os.path.join(LOG_DIR_CLOTH, 'clothing_dcd_gated_dim64.log')\n",
+    "# if RUN_CLOTH_64_GATED:\n",
+    "#     run_training_v5_plus(key='clothing', yaml_cfg=YAML_CLOTH, data_root=DATA_ROOT, log_path=log_c_64g,\n",
+    "#                          method='dcd_gated', epochs=500, embedding_dim=64, batch_size=2048, patience=30)\n",
     "\n",
     "# 3. Clothing Baseline 256D\n",
-    "log_c_256b = os.path.join(LOG_DIR_CLOTH, 'clothing_stair_baseline_dim256.log')\n",
-    "if RUN_CLOTH_256_BASE:\n",
-    "    run_stair_baseline(key='clothing', yaml_cfg=YAML_CLOTH, data_root=DATA_ROOT, log_path=log_c_256b,\n",
-    "                       epochs=500, embedding_dim=256, batch_size=2048, patience=30)\n",
+    "# log_c_256b = os.path.join(LOG_DIR_CLOTH, 'clothing_stair_baseline_dim256.log')\n",
+    "# if RUN_CLOTH_256_BASE:\n",
+    "#     run_stair_baseline(key='clothing', yaml_cfg=YAML_CLOTH, data_root=DATA_ROOT, log_path=log_c_256b,\n",
+    "#                        epochs=500, embedding_dim=256, batch_size=2048, patience=30)\n",
     "\n",
     "# 4. Clothing DCD-Gated 256D\n",
-    "log_c_256g = os.path.join(LOG_DIR_CLOTH, 'clothing_dcd_gated_dim256.log')\n",
-    "if RUN_CLOTH_256_GATED:\n",
-    "    run_training_v5_plus(key='clothing', yaml_cfg=YAML_CLOTH, data_root=DATA_ROOT, log_path=log_c_256g,\n",
-    "                         method='dcd_gated', epochs=500, embedding_dim=256, batch_size=2048, patience=30)\n"
+    "# log_c_256g = os.path.join(LOG_DIR_CLOTH, 'clothing_dcd_gated_dim256.log')\n",
+    "# if RUN_CLOTH_256_GATED:\n",
+    "#     run_training_v5_plus(key='clothing', yaml_cfg=YAML_CLOTH, data_root=DATA_ROOT, log_path=log_c_256g,\n",
+    "#                          method='dcd_gated', epochs=500, embedding_dim=256, batch_size=2048, patience=30)\n",
+    "\n",
+    "print('⏸️ [TẠM BỎ QUA] Amazon Clothing đã được comment lại theo yêu cầu (ưu tiên Baby & Sports).')\n"
 ]
 
-# Cell 15: Code — Plot Clothing Dynamics
+# Cell 15: Code — Plot Clothing Dynamics & Export CSV (Safe Execution)
 cell15_source = [
-    "# Cell 15: Đồ Thị Learning Dynamics & VRAM Utilization — Amazon Clothing\n",
+    "# Cell 15: Đồ Thị Learning Dynamics, VRAM & Xuất CSV — Amazon Clothing\n",
     "cloth_logs = {\n",
     "    '64d_base':   '/kaggle/working/logs/benchmark/clothing/clothing_stair_baseline_dim64.log',\n",
     "    '64d_gated':  '/kaggle/working/logs/benchmark/clothing/clothing_dcd_gated_dim64.log',\n",
     "    '256d_base':  '/kaggle/working/logs/benchmark/clothing/clothing_stair_baseline_dim256.log',\n",
     "    '256d_gated': '/kaggle/working/logs/benchmark/clothing/clothing_dcd_gated_dim256.log',\n",
     "}\n",
-    "plot_single_dataset_learning_curves('clothing', cloth_logs, '/kaggle/working/reports/learning_curve_clothing.png')\n"
+    "has_cloth_log = any(os.path.exists(p) for p in cloth_logs.values())\n",
+    "if has_cloth_log:\n",
+    "    cloth_configs = [\n",
+    "        ('STAIR Baseline (Paper Reference)', '64D', cloth_logs['64d_base'], PAPER_BENCHMARKS['clothing']),\n",
+    "        ('★ STAIR DCD-Gated',               '64D', cloth_logs['64d_gated'], None),\n",
+    "        ('STAIR Baseline',                  '256D', cloth_logs['256d_base'], None),\n",
+    "        ('★ STAIR DCD-Gated SOTA',          '256D', cloth_logs['256d_gated'], None),\n",
+    "    ]\n",
+    "    summarize_and_export_single_dataset('clothing', cloth_configs, '/kaggle/working/reports/results_clothing.csv')\n",
+    "    plot_single_dataset_learning_curves('clothing', cloth_logs, '/kaggle/working/reports/learning_curve_clothing.png')\n",
+    "    print('📁 [SẴN SÀNG TẢI VỀ CLOTHING]: /kaggle/working/reports/results_clothing.csv và learning_curve_clothing.png')\n",
+    "else:\n",
+    "    print('⏸️ [THÔNG BÁO] Amazon Clothing chưa chạy (Đang tạm khóa). Bỏ qua vẽ hình tập này.')\n"
 ]
 
 # Cell 16: Markdown — Synthesis & Reporting
 cell16_source = [
     "## 📊 TỔNG KẾT TOÀN DIỆN, BẢNG ĐỐI SOÁNH KHOA HỌC & XUẤT BÁO CÁO CSV\n",
-    "Bảng tổng hợp toàn bộ 4 tập dữ liệu với đầy đủ các chỉ số: **Recall@10, Recall@20, NDCG@10, NDCG@20**,\n",
-    "tính toán chính xác phần trăm thay đổi $\\Delta$ so với **Baseline 64D** và so với **Baseline 256D**,\n",
-    "đồng thời xuất tự động ra tệp `final_experiment_results.csv` phục vụ viết bài báo khoa học."
+    "Bảng tổng hợp đối sánh tự động thích ứng với **các tập dữ liệu đã chạy**:\n",
+    "- Hiển thị các chỉ số cốt lõi: **Recall@10, Recall@20, NDCG@10, NDCG@20**.\n",
+    "- Tính toán phần trăm cải thiện $\\Delta$ so với **Baseline 64D** và so với **Baseline 256D**.\n",
+    "- Tự động xuất file CSV tổng hợp: `final_experiment_results.csv`.\n",
+    "- Vẽ biểu đồ đối chuẩn đa tập và liệt kê danh sách toàn bộ các file ảnh/CSV sẵn sàng tải về."
 ]
 
 # Cell 17: Master Summary Table, Cross-Dataset Plots & CSV Export
@@ -858,18 +946,27 @@ cell17_source = [
     "    ],\n",
     "}\n",
     "\n",
+    "# 1. Tự động nhận diện các tập dữ liệu đã có log hoặc đã kích hoạt\n",
+    "active_datasets = []\n",
+    "for dkey, configs in ALL_LOGS_MAP.items():\n",
+    "    has_log = any((log_p and os.path.exists(log_p)) for _, _, log_p, _ in configs if log_p)\n",
+    "    if has_log:\n",
+    "        active_datasets.append(dkey)\n",
+    "if not active_datasets:\n",
+    "    active_datasets = ['baby', 'sports'] # Fallback mặc định theo nhóm ưu tiên\n",
+    "\n",
     "table = PrettyTable()\n",
     "table.field_names = ['Tập dữ liệu', 'Phương pháp', 'Số chiều', 'Recall@10', 'Recall@20', 'NDCG@10', 'NDCG@20', 'Δ vs Base 64D', 'Δ vs Base 256D']\n",
     "table.align = 'l'\n",
     "\n",
     "csv_rows = []\n",
     "\n",
-    "for dkey, configs in ALL_LOGS_MAP.items():\n",
+    "for dkey in active_datasets:\n",
+    "    configs = ALL_LOGS_MAP[dkey]\n",
     "    dname = dkey.upper()\n",
     "    ref_64_n20 = PAPER_BENCHMARKS[dkey]['NDCG@20']\n",
     "    base_256_n20 = None\n",
     "\n",
-    "    # Tìm giá trị baseline 256D trước để tính delta\n",
     "    for method_name, dim, log_p, fallback in configs:\n",
     "        if 'Baseline' in method_name and dim == '256D':\n",
     "            if log_p and os.path.exists(log_p):\n",
@@ -890,13 +987,11 @@ cell17_source = [
     "            n10 = m_found['NDCG@10']\n",
     "            n20 = m_found['NDCG@20']\n",
     "\n",
-    "            # Tính delta vs 64D\n",
     "            d_64_str = '-'\n",
     "            if not ('Baseline' in method_name and dim == '64D'):\n",
     "                gain_64 = (n20 - ref_64_n20) / ref_64_n20 * 100\n",
     "                d_64_str = f\"{'+' if gain_64 >= 0 else ''}{gain_64:.2f}%\"\n",
     "\n",
-    "            # Tính delta vs 256D\n",
     "            d_256_str = '-'\n",
     "            if 'DCD-Gated' in method_name and dim == '256D' and base_256_n20 is not None:\n",
     "                gain_256 = (n20 - base_256_n20) / base_256_n20 * 100\n",
@@ -914,26 +1009,30 @@ cell17_source = [
     "                'Delta_vs_Base64D': d_64_str, 'Delta_vs_Base256D': d_256_str\n",
     "            })\n",
     "        else:\n",
-    "            table.add_row([dname, f\"{method_name} (Đang chạy...)\", dim, '-', '-', '-', '-', '-', '-'])\n",
+    "            table.add_row([dname, f\"{method_name} (Chưa chạy)\", dim, '-', '-', '-', '-', '-', '-'])\n",
     "\n",
+    "print('\\n' + '=' * 80)\n",
+    "print('🏆 BẢNG TỔNG HỢP KẾT QUẢ THỰC NGHIỆM ĐỐI CHUẨN (CÁC TẬP ĐÃ CHẠY):')\n",
+    "print('=' * 80)\n",
     "print(table)\n",
     "\n",
-    "# 2. Xuất bảng ra file CSV phục vụ nộp bài báo / báo cáo khóa luận\n",
+    "# 2. Xuất bảng ra file CSV tổng hợp\n",
     "csv_out_kaggle = '/kaggle/working/reports/final_experiment_results.csv'\n",
     "csv_out_local  = 'reports/final_experiment_results.csv'\n",
     "for out_p in [csv_out_kaggle, csv_out_local]:\n",
     "    try:\n",
     "        os.makedirs(os.path.dirname(out_p), exist_ok=True)\n",
     "        pd.DataFrame(csv_rows).to_csv(out_p, index=False, encoding='utf-8')\n",
-    "        print(f\"✅ Đã xuất kết quả thực nghiệm ra CSV: {out_p}\")\n",
+    "        print(f\"✅ Đã xuất kết quả tổng hợp ra CSV: {out_p}\")\n",
     "    except Exception:\n",
     "        pass\n",
     "\n",
-    "# 3. Biểu đồ đối chuẩn đa tập dữ liệu (Cross-Dataset Performance Benchmark)\n",
+    "# 3. Biểu đồ đối chuẩn đa tập dữ liệu (Động theo các tập đã kích hoạt)\n",
     "if csv_rows:\n",
     "    df = pd.DataFrame(csv_rows)\n",
-    "    fig, ax = plt.subplots(figsize=(14, 6), dpi=180)\n",
-    "    datasets = ['BABY', 'SPORTS', 'ELECTRONICS', 'CLOTHING']\n",
+    "    datasets = [d.upper() for d in active_datasets]\n",
+    "    fig_w = max(8, len(datasets) * 3.5)\n",
+    "    fig, ax = plt.subplots(figsize=(fig_w, 5.5), dpi=180)\n",
     "    x = np.arange(len(datasets))\n",
     "    width = 0.20\n",
     "\n",
@@ -941,8 +1040,8 @@ cell17_source = [
     "        sub = df[(df['Dataset'] == d) & (df['Method'].str.contains(m_keyword)) & (df['Dimension'] == dim_val)]\n",
     "        return sub['NDCG@20'].iloc[0] if len(sub) > 0 else 0.0\n",
     "\n",
-    "    vals_base64 = [get_val(d, 'Baseline', '64D') for d in datasets]\n",
-    "    vals_dcd64  = [get_val(d, 'DCD-Gated', '64D') for d in datasets]\n",
+    "    vals_base64  = [get_val(d, 'Baseline', '64D') for d in datasets]\n",
+    "    vals_dcd64   = [get_val(d, 'DCD-Gated', '64D') for d in datasets]\n",
     "    vals_base256 = [get_val(d, 'Baseline', '256D') for d in datasets]\n",
     "    vals_dcd256  = [get_val(d, 'DCD-Gated', '256D') for d in datasets]\n",
     "\n",
@@ -952,7 +1051,7 @@ cell17_source = [
     "    ax.bar(x + 1.5*width, vals_dcd256,  width, label='★ DCD-Gated SOTA (256D)', color='#e6550d', edgecolor='black')\n",
     "\n",
     "    ax.set_ylabel('NDCG@20 Score', fontsize=12, fontweight='bold')\n",
-    "    ax.set_title('Cross-Dataset Performance Comparison — STAIR Baseline vs DCD-Gated (64D vs 256D)', fontsize=13, fontweight='bold')\n",
+    "    ax.set_title(f'Cross-Dataset Benchmark — STAIR Baseline vs DCD-Gated (64D vs 256D)\\nActive Datasets: {\", \".join(datasets)}', fontsize=12, fontweight='bold')\n",
     "    ax.set_xticks(x)\n",
     "    ax.set_xticklabels(datasets, fontsize=11, fontweight='bold')\n",
     "    ax.grid(True, ls='--', alpha=0.35, axis='y')\n",
@@ -960,8 +1059,20 @@ cell17_source = [
     "    plt.tight_layout()\n",
     "    fig_cross_p = '/kaggle/working/reports/cross_dataset_benchmark.png'\n",
     "    plt.savefig(fig_cross_p, dpi=180, bbox_inches='tight')\n",
-    "    print(f\"✅ Đã xuất biểu đồ đối chuẩn đa tập: {fig_cross_p}\")\n",
-    "    plt.show()\n"
+    "    print(f\"✅ Đã xuất biểu đồ đối chuẩn: {fig_cross_p}\")\n",
+    "    plt.show()\n",
+    "\n",
+    "# 4. Danh sách toàn bộ các file sẵn sàng tải về\n",
+    "print('\\n' + '=' * 80)\n",
+    "print('📁 DANH SÁCH TOÀN BỘ FILE KẾT QUẢ SẴN SÀNG TẢI VỀ TỪ THƯ MỤC REPORTS:')\n",
+    "print('=' * 80)\n",
+    "rep_dir = '/kaggle/working/reports' if os.path.exists('/kaggle/working/reports') else 'reports'\n",
+    "if os.path.exists(rep_dir):\n",
+    "    for f in sorted(os.listdir(rep_dir)):\n",
+    "        fpath = os.path.join(rep_dir, f)\n",
+    "        fsize_kb = os.path.getsize(fpath) / 1024\n",
+    "        icon = '🖼️' if f.endswith('.png') else ('📊' if f.endswith('.csv') else '📄')\n",
+    "        print(f\"{icon} {fpath} ({fsize_kb:.1f} KB)\")\n"
 ]
 
 new_cells = [
