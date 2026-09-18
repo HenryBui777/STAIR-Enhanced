@@ -107,7 +107,7 @@ DATASET_CONFIGS = {
         "item_count": 63001,
         "interactions": "1.69M",
         "sparsity": "99.986%",
-        "batch_size": 4096,
+        "batch_size": 2048,
         "color": "#2ca02c",
         "paper_table": "STAIR Baseline 64D (Paper Table 2): Recall@10 = 0.0440 | Recall@20 = 0.0663 | NDCG@10 = 0.0245 | NDCG@20 = 0.0302",
         "paper_benchmarks": {"Recall@10": 0.0440, "Recall@20": 0.0663, "NDCG@10": 0.0245, "NDCG@20": 0.0302},
@@ -165,6 +165,7 @@ def build_notebook_for_dataset(dkey, info):
     # Cell 0: Markdown - Header, Table of Configurations & Output Deliverables
     # ─────────────────────────────────────────────────────────────────────────
     has_cloth_64b = (dkey == "clothing")
+    extra_chunk_tag = " | Chunk Size = `2000` (Zero-OOM Engine)" if dkey == "electronics" else ""
     c0 = [
         f"# 🚀 THỰC NGHIỆM ĐỐI CHUẨN ĐỘC LẬP: STAIR DCD-GATED TRÊN {title.upper()}\n",
         f"### 🏆 Quy mô: {users} Users | {items} Items | {inter} Interactions | Độ thưa {spar}\n",
@@ -172,7 +173,7 @@ def build_notebook_for_dataset(dkey, info):
         f"> **Tập dữ liệu:** {title} ({canon})\n",
         "> **Phương pháp:** STAIR DCD-Gated (Dual-Consensus Denoising & Gated Residuals)\n",
         "> **Backbone:** Stepwise Forward/Backward Spectral Graph Convolution (STAIR - AAAI 2025)\n",
-        f"> **Cấu hình tối ưu:** Batch Size = `{bs}` | Epochs = `500` | Optimizer = `AdamWSEvo` | LR = `1e-3` (Warmup 15 eps -> Cosine Decay)\n",
+        f"> **Cấu hình tối ưu:** Batch Size = `{bs}`{extra_chunk_tag} | Epochs = `500` | Optimizer = `AdamWSEvo` | LR = `1e-3` (Warmup 15 eps -> Cosine Decay)\n",
         "\n",
         "### 📋 BẢNG 1: CÁC CẤU HÌNH THỰC NGHIỆM ĐƯỢC CHẠY TRONG NOTEBOOK NÀY\n",
         "| STT | Tên cấu hình | Không gian | Phương pháp | Max Epochs | Batch Size | Mô tả khoa học |\n",
@@ -186,7 +187,10 @@ def build_notebook_for_dataset(dkey, info):
     stt += 1
     c0.append(f"| {stt} | `{dkey}_stair_baseline_dim256` | **256D** | STAIR Baseline | 500 | {bs} | Khảo sát năng lực mở rộng số chiều tự thân lên 256D (không có DCD) |\n")
     stt += 1
-    c0.append(f"| {stt} | `{dkey}_dcd_gated_dim256` | **256D** | ★ STAIR DCD-Gated SOTA | 500 | {bs} | **Cấu hình đột phá SOTA:** Kết hợp mở rộng 256D + Làm dày cạnh ảo Đồng thuận kép + Van an toàn phi tuyến |\n")
+    if dkey == "electronics":
+        c0.append(f"| {stt} | `{dkey}_dcd_gated_dim256` | **256D** | ★ STAIR DCD-Gated SOTA | 500 | {bs} | **Cấu hình đột phá SOTA:** Kết hợp mở rộng 256D + Làm dày cạnh ảo Đồng thuận kép (Chunk Size = 2000 Zero-OOM) + Van an toàn phi tuyến |\n")
+    else:
+        c0.append(f"| {stt} | `{dkey}_dcd_gated_dim256` | **256D** | ★ STAIR DCD-Gated SOTA | 500 | {bs} | **Cấu hình đột phá SOTA:** Kết hợp mở rộng 256D + Làm dày cạnh ảo Đồng thuận kép + Van an toàn phi tuyến |\n")
 
     c0.extend([
         "\n",

@@ -6,7 +6,7 @@ if hasattr(sys.stdout, 'reconfigure'):
 NOTEBOOKS = [
     ('baby', 'notebook/stair_baby_all.ipynb', 7050, 512),
     ('sports', 'notebook/stair_sports_all.ipynb', 18357, 1024),
-    ('electronics', 'notebook/stair_electronics_all.ipynb', 63001, 4096),
+    ('electronics', 'notebook/stair_electronics_all.ipynb', 63001, 2048),
     ('clothing', 'notebook/stair_clothing_all.ipynb', 23033, 1024),
 ]
 
