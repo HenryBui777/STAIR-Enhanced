@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-scripts/generate_sports_512d_notebook.py
+scripts/generate_sports_256d_notebook.py
 =========================================
-Tạo notebook chuyên biệt chạy STAIR Baseline trên Amazon Sports ở không gian 512 chiều (512D):
-notebook/stair_sports_512d.ipynb
-- Thực thi: STAIR Baseline (Embedding Dim = 512D, kNN = 5-1, Batch = 2048, Patience = 30)
-- Đối sánh trực tiếp 3 mốc:
-  1. STAIR Baseline (64D Paper) : R@10=0.0743, R@20=0.1117, N@10=0.0407, N@20=0.0503
-  2. STAIR Baseline (512D)      : Kết quả vừa huấn luyện
-  3. STAIR Enhanced (512D)      : R@10=0.0764, R@20=0.1118, N@10=0.0422, N@20=0.0508
+Tạo notebook chuyên biệt chạy STAIR Baseline trên Amazon Sports ở không gian 256 chiều (256D):
+notebook/stair_sports_256d.ipynb
+- Thực thi: STAIR Baseline (Embedding Dim = 256D, kNN = 5-1, Batch = 2048, Patience = 30)
+- Đối sánh trực tiếp 3 mốc khoa học (Ablation Study):
+  1. STAIR Baseline (64D Paper Table 2) : R@10=0.0743, R@20=0.1117, N@10=0.0407, N@20=0.0503
+  2. STAIR Baseline (256D)              : Kết quả vừa huấn luyện (khảo sát năng lực mở rộng chiều)
+  3. STAIR Enhanced SOTA (256D)         : R@10=0.0753, R@20=0.1113, N@10=0.0415, N@20=0.0508
 """
 import json
 import os
@@ -39,20 +39,20 @@ for cell in nb["cells"]:
 
 # Cell 0: Header
 cell0_source = [
-    "# 🚀 THỰC NGHIỆM ĐỐI CHỨNG: STAIR BASELINE TRÊN AMAZON SPORTS Ở KHÔNG GIAN 512 CHIỀU (512D)\n",
-    "## 🏆 Amazon Sports (35,598 Users, 18,357 Items, 296,337 Interactions) | Embedding Dim = 512D | Batch Size = 2048\n",
+    "# 🚀 THỰC NGHIỆM ĐỐI CHỨNG: STAIR BASELINE TRÊN AMAZON SPORTS Ở KHÔNG GIAN 256 CHIỀU (256D)\n",
+    "## 🏆 Amazon Sports (35,598 Users, 18,357 Items, 296,337 Interactions) | Embedding Dim = 256D | Batch Size = 2048\n",
     "---\n",
     "### 🎯 MỤC TIÊU VÀ Ý NGHĨA KHOA HỌC:\n",
     "1. **Mục tiêu thực nghiệm:**\n",
-    "   - Huấn luyện mô hình **STAIR Baseline gốc** khi mở rộng dung lượng biểu diễn lên **512 chiều** (`embedding_dim: 512`) trên tập dữ liệu Amazon Sports.\n",
+    "   - Huấn luyện mô hình **STAIR Baseline gốc** khi mở rộng dung lượng biểu diễn lên **256 chiều** (`embedding_dim: 256`) trên tập dữ liệu Amazon Sports.\n",
     "   - Giữ nguyên toàn bộ cấu hình chuẩn của tác giả trong Bảng 4: $L=3$, $\\gamma=0.2$, $k_t=5, k_v=1$, tối ưu AdamW (`lr: 1e-3`, `weight_decay: 0.1`).\n",
-    "2. **Đối sánh đa chiều 3 mốc thực nghiệm trên Sports:**\n",
+    "2. **Đối sánh đa chiều 3 mốc thực nghiệm trên Sports (Ablation Study):**\n",
     "   - **Mốc 1:** STAIR Baseline chuẩn 64 chiều (`64D`) công bố trong Paper Table 2 -> NDCG@20 = 0.0503 (R@10=0.0743, R@20=0.1117, N@10=0.0407).\n",
-    "   - **Mốc 2:** STAIR Baseline mở rộng 512 chiều (`512D`) -> Khảo sát năng lực tự thân của Baseline khi tăng dung lượng chiều.\n",
-    "   - **Mốc 3:** STAIR Cải tiến Đột phá 512 chiều (`512D`) -> NDCG@20 = 0.0508 (R@10=0.0764, R@20=0.1118, N@10=0.0422).\n",
+    "   - **Mốc 2:** STAIR Baseline mở rộng 256 chiều (`256D`) -> Khảo sát năng lực tự thân của Baseline khi tăng dung lượng chiều lên 256D.\n",
+    "   - **Mốc 3:** STAIR Cải tiến Đột phá 256 chiều (`256D`) -> NDCG@20 = 0.0508 (R@10=0.0753, R@20=0.1113, N@10=0.0415).\n",
     "3. **Câu hỏi nghiên cứu trả lời:**\n",
-    "   - *Mở rộng số chiều lên 512D trong Baseline STAIR thuần túy có giúp cải thiện độ chính xác gợi ý không?*\n",
-    "   - *Mức nhảy vọt của phương pháp cải tiến đến từ dung lượng biểu diễn 512D hay từ cơ chế đồ thị và hàm mất mát tương phản?*\n"
+    "   - *Mở rộng số chiều lên 256D trong Baseline STAIR thuần túy có giúp cải thiện độ chính xác gợi ý không?*\n",
+    "   - *Mức nhảy vọt của phương pháp cải tiến đến từ dung lượng biểu diễn 256D hay thực sự đến từ cơ chế đồ thị và hàm mất mát tương phản ở cùng không gian 256D?*\n"
 ]
 
 # Cell 1: Environment & Sync
@@ -170,7 +170,7 @@ cell1_source = [
     "    return decorator\n",
     "\n",
     "dp.functional_datapipe = functional_datapipe\n",
-    "print(\"✅ Môi trường STAIR-Enhanced & Dependencies đã sẵn sàng cho Sports 512D!\")\n"
+    "print(\"✅ Môi trường STAIR-Enhanced & Dependencies đã sẵn sàng cho Sports 256D!\")\n"
 ]
 
 # Cell 2: Sports Data Scanner & Adapter
@@ -266,7 +266,7 @@ cell2_source = [
 
 # Cell 3: Runner Engine
 cell3_source = [
-    "# Cell 3: Runner Engine Huấn Luyện STAIR Baseline (512D)\n",
+    "# Cell 3: Runner Engine Huấn Luyện STAIR Baseline (256D)\n",
     "import subprocess, sys, os, time, re, threading\n",
     "\n",
     "try:\n",
@@ -345,7 +345,7 @@ cell3_source = [
     "def run_stair_baseline(\n",
     "    key, yaml_cfg, data_root, log_path,\n",
     "    epochs=500,\n",
-    "    embedding_dim=512,\n",
+    "    embedding_dim=256,\n",
     "    batch_size=2048,\n",
     "    patience=30,\n",
     "    mfiles='textual_modality.pkl,visual_modality.pkl',\n",
@@ -356,7 +356,7 @@ cell3_source = [
     "    print(f'🚀 BẮT ĐẦU HUẤN LUYỆN: {key.upper()} | METHOD: [STAIR_BASELINE] | DIM: [{embedding_dim}] | EPOCHS: [{epochs}]')\n",
     "    print(f'  * Dataset Key         : {key}')\n",
     "    print(f'  * Method              : STAIR Baseline')\n",
-    "    print(f'  * Embedding Dim       : {embedding_dim} (Không gian mở rộng 512D)')\n",
+    "    print(f'  * Embedding Dim       : {embedding_dim} (Không gian 256D đối chuẩn)')\n",
     "    print(f'  * Modal kNN Neighbors : {num_neighbors} (Text: 5, Vision: 1)')\n",
     "    print(f'  * Batch Size          : {batch_size}')\n",
     "    print(f'  * Max Epochs          : {epochs}')\n",
@@ -402,7 +402,7 @@ cell3_source = [
     "    if proc.returncode != 0:\n",
     "        print(f'⚠️ [CẢNH BÁO] STAIR Baseline kết thúc với mã {proc.returncode}.')\n",
     "    else:\n",
-    "        print(f'✅ [HOÀN TẤT] STAIR Baseline (512D) thành công trong {elapsed/60:.2f} phút ({elapsed:.1f}s)!')\n",
+    "        print(f'✅ [HOÀN TẤT] STAIR Baseline (256D) thành công trong {elapsed/60:.2f} phút ({elapsed:.1f}s)!')\n",
     "\n",
     "    best_ep, metrics = extract_best_test(log_path)\n",
     "    print(f'  * Checkpoint tối ưu : Epoch {best_ep}')\n",
@@ -412,28 +412,28 @@ cell3_source = [
     "    return best_ep, metrics\n"
 ]
 
-# Cell 4: Markdown Section - Train Baseline 512D
+# Cell 4: Markdown Section - Train Baseline 256D
 cell4_source = [
-    "## 🏋️ Huấn luyện STAIR Baseline trên Sports ở không gian 512D\n",
-    "Khởi chạy huấn luyện **STAIR Baseline** với `embedding_dim: 512`:\n",
-    "- Toàn bộ biểu diễn User, Item và đặc trưng nén SVD (Text 384D $\\to$ 512D, Image 4096D $\\to$ 512D) đều được đồng bộ lên **512 chiều**.\n",
+    "## 🏋️ Huấn luyện STAIR Baseline trên Sports ở không gian 256D\n",
+    "Khởi chạy huấn luyện **STAIR Baseline** với `embedding_dim: 256`:\n",
+    "- Toàn bộ biểu diễn User, Item và đặc trưng nén SVD (Text 384D $\\to$ 256D, Image 4096D $\\to$ 256D) đều được đồng bộ về **256 chiều**.\n",
     "- Giữ nguyên cơ chế tích chập chuyển tiếp FSC/BSC và ma trận mAdj kNN truyền thống của tác giả ($L=3, \\gamma=0.2$)."
 ]
 
-# Cell 5: Code Section - Execute Baseline 512D
+# Cell 5: Code Section - Execute Baseline 256D
 cell5_source = [
-    "# Cell 5: Huấn luyện STAIR Baseline (512D, kNN 5-1, Batch 2048)\n",
+    "# Cell 5: Huấn luyện STAIR Baseline (256D, kNN 5-1, Batch 2048)\n",
     "DATA_ROOT = '/kaggle/data'\n",
     "YAML_PATH = '/kaggle/working/STAIR-Enhanced/configs/Amazon2014Sports_550_MMRec.yaml'\n",
-    "LOG_BASELINE_512D = '/kaggle/working/logs/baseline/sports_stair_baseline_dim512.log'\n",
+    "LOG_BASELINE_256D = '/kaggle/working/logs/baseline/sports_stair_baseline_dim256.log'\n",
     "\n",
     "run_stair_baseline(\n",
     "    key='Amazon2014Sports_550_MMRec',\n",
     "    yaml_cfg=YAML_PATH,\n",
     "    data_root=DATA_ROOT,\n",
-    "    log_path=LOG_BASELINE_512D,\n",
+    "    log_path=LOG_BASELINE_256D,\n",
     "    epochs=500,\n",
-    "    embedding_dim=512,\n",
+    "    embedding_dim=256,\n",
     "    batch_size=2048,\n",
     "    patience=30,\n",
     "    mfiles='textual_modality.pkl,visual_modality.pkl',\n",
@@ -443,11 +443,11 @@ cell5_source = [
 
 # Cell 6: Markdown Section - Comparison Table
 cell6_source = [
-    "## 📊 Bảng Đối Sánh Khoa Học Đa Chiều: Baseline 64D vs Baseline 512D vs Cải Tiến Đột Phá\n",
+    "## 📊 Bảng Đối Sánh Khoa Học Đa Chiều: Baseline 64D vs Baseline 256D vs Cải Tiến Đột Phá 256D\n",
     "Bảng tổng hợp kết quả đối sánh 3 cấu hình thực nghiệm trên **Amazon Sports**:\n",
     "1. **STAIR Baseline (64D):** Cấu hình chuẩn của tác giả trong bài báo gốc Table 2.\n",
-    "2. **STAIR Baseline (512D):** Cấu hình mở rộng số chiều tự thân của Baseline vừa chạy.\n",
-    "3. **STAIR Cải Tiến Đột Phá (512D):** Phương pháp tích hợp tương phản và làm dày đồ thị."
+    "2. **STAIR Baseline (256D):** Cấu hình mở rộng số chiều tự thân của Baseline vừa chạy.\n",
+    "3. **STAIR Cải Tiến Đột Phá (256D):** Phương pháp tích hợp tương phản và làm dày đồ thị ở cùng không gian 256D."
 ]
 
 # Cell 7: Code Section - Summary Table
@@ -464,16 +464,16 @@ cell7_source = [
     "    'NDCG@20':   0.0503,\n",
     "}\n",
     "\n",
-    "# Mốc thực nghiệm STAIR Enhanced / SOTA (512D)\n",
-    "ENHANCED_512D = {\n",
-    "    'Recall@10': 0.0764,\n",
-    "    'Recall@20': 0.1118,\n",
-    "    'NDCG@10':   0.0422,\n",
+    "# Mốc thực nghiệm STAIR Enhanced / SOTA (256D)\n",
+    "ENHANCED_256D = {\n",
+    "    'Recall@10': 0.0753,\n",
+    "    'Recall@20': 0.1113,\n",
+    "    'NDCG@10':   0.0415,\n",
     "    'NDCG@20':   0.0508,\n",
     "}\n",
     "\n",
     "table = PrettyTable()\n",
-    "table.field_names = ['Tập dữ liệu', 'Phương pháp', 'Số chiều', 'Recall@10', 'Recall@20', 'NDCG@10', 'NDCG@20', 'Δ vs Base 64D', 'Δ vs Base 512D']\n",
+    "table.field_names = ['Tập dữ liệu', 'Phương pháp', 'Số chiều', 'Recall@10', 'Recall@20', 'NDCG@10', 'NDCG@20', 'Δ vs Base 64D', 'Δ vs Base 256D']\n",
     "\n",
     "# 1. Dòng Baseline 64D Paper\n",
     "table.add_row([\n",
@@ -483,42 +483,42 @@ cell7_source = [
     "    '-', '-'\n",
     "])\n",
     "\n",
-    "# 2. Dòng Baseline 512D vừa chạy\n",
-    "log_512d = '/kaggle/working/logs/baseline/sports_stair_baseline_dim512.log'\n",
-    "ep_512, m_512 = extract_best_test(log_512d)\n",
-    "base_512_n20 = None\n",
+    "# 2. Dòng Baseline 256D vừa chạy\n",
+    "log_256d = '/kaggle/working/logs/baseline/sports_stair_baseline_dim256.log'\n",
+    "ep_256, m_256 = extract_best_test(log_256d)\n",
+    "base_256_n20 = None\n",
     "\n",
-    "if m_512 and len(m_512) >= 4:\n",
-    "    base_512_n20 = m_512['NDCG@20']\n",
-    "    gain_vs_64 = (m_512['NDCG@20'] - BASELINE_64D['NDCG@20']) / BASELINE_64D['NDCG@20'] * 100\n",
+    "if m_256 and len(m_256) >= 4:\n",
+    "    base_256_n20 = m_256['NDCG@20']\n",
+    "    gain_vs_64 = (m_256['NDCG@20'] - BASELINE_64D['NDCG@20']) / BASELINE_64D['NDCG@20'] * 100\n",
     "    sign_64 = '+' if gain_vs_64 >= 0 else ''\n",
     "    table.add_row([\n",
-    "        'SPORTS', f\"STAIR Baseline [@Ep{ep_512}]\", '512D',\n",
-    "        f\"{m_512['Recall@10']:.4f}\", f\"{m_512['Recall@20']:.4f}\",\n",
-    "        f\"{m_512['NDCG@10']:.4f}\", f\"{m_512['NDCG@20']:.4f}\",\n",
+    "        'SPORTS', f\"STAIR Baseline [@Ep{ep_256}]\", '256D',\n",
+    "        f\"{m_256['Recall@10']:.4f}\", f\"{m_256['Recall@20']:.4f}\",\n",
+    "        f\"{m_256['NDCG@10']:.4f}\", f\"{m_256['NDCG@20']:.4f}\",\n",
     "        f\"{sign_64}{gain_vs_64:.2f}%\", '-'\n",
     "    ])\n",
     "else:\n",
     "    table.add_row([\n",
-    "        'SPORTS', 'STAIR Baseline (Đang chạy...)', '512D',\n",
+    "        'SPORTS', 'STAIR Baseline (Đang chạy...)', '256D',\n",
     "        '-', '-', '-', '-', '-', '-'\n",
     "    ])\n",
     "\n",
-    "# 3. Dòng STAIR Enhanced 512D\n",
-    "gain_enh_vs_64 = (ENHANCED_512D['NDCG@20'] - BASELINE_64D['NDCG@20']) / BASELINE_64D['NDCG@20'] * 100\n",
+    "# 3. Dòng STAIR Enhanced 256D\n",
+    "gain_enh_vs_64 = (ENHANCED_256D['NDCG@20'] - BASELINE_64D['NDCG@20']) / BASELINE_64D['NDCG@20'] * 100\n",
     "sign_enh_64 = '+' if gain_enh_vs_64 >= 0 else ''\n",
     "\n",
-    "delta_vs_512_str = '-'\n",
-    "if base_512_n20 is not None:\n",
-    "    gain_enh_vs_512 = (ENHANCED_512D['NDCG@20'] - base_512_n20) / base_512_n20 * 100\n",
-    "    sign_512 = '+' if gain_enh_vs_512 >= 0 else ''\n",
-    "    delta_vs_512_str = f\"{sign_512}{gain_enh_vs_512:.2f}%\"\n",
+    "delta_vs_256_str = '-'\n",
+    "if base_256_n20 is not None:\n",
+    "    gain_enh_vs_256 = (ENHANCED_256D['NDCG@20'] - base_256_n20) / base_256_n20 * 100\n",
+    "    sign_256 = '+' if gain_enh_vs_256 >= 0 else ''\n",
+    "    delta_vs_256_str = f\"{sign_256}{gain_enh_vs_256:.2f}%\"\n",
     "\n",
     "table.add_row([\n",
-    "    'SPORTS', '★ STAIR Enhanced SOTA', '512D',\n",
-    "    f\"{ENHANCED_512D['Recall@10']:.4f}\", f\"{ENHANCED_512D['Recall@20']:.4f}\",\n",
-    "    f\"{ENHANCED_512D['NDCG@10']:.4f}\", f\"{ENHANCED_512D['NDCG@20']:.4f}\",\n",
-    "    f\"{sign_enh_64}{gain_enh_vs_64:.2f}%\", delta_vs_512_str\n",
+    "    'SPORTS', '★ STAIR Enhanced SOTA', '256D',\n",
+    "    f\"{ENHANCED_256D['Recall@10']:.4f}\", f\"{ENHANCED_256D['Recall@20']:.4f}\",\n",
+    "    f\"{ENHANCED_256D['NDCG@10']:.4f}\", f\"{ENHANCED_256D['NDCG@20']:.4f}\",\n",
+    "    f\"{sign_enh_64}{gain_enh_vs_64:.2f}%\", delta_vs_256_str\n",
     "])\n",
     "\n",
     "print(table)\n",
@@ -526,11 +526,11 @@ cell7_source = [
     "print('\\n' + '=' * 85)\n",
     "print(\"🎉 KẾT LUẬN BÓC TÁCH HIỆU NĂNG (ABLATION STUDY) TRÊN AMAZON SPORTS:\")\n",
     "print(f\"  • Baseline 64D  : NDCG@20 = {BASELINE_64D['NDCG@20']:.4f} (Mốc chuẩn Paper)\")\n",
-    "if base_512_n20 is not None:\n",
-    "    print(f\"  • Baseline 512D : NDCG@20 = {base_512_n20:.4f} ({sign_64}{gain_vs_64:.2f}% vs Base 64D)\")\n",
-    "    print(f\"  • Enhanced 512D : NDCG@20 = {ENHANCED_512D['NDCG@20']:.4f} ({delta_vs_512_str} vs Base 512D, {sign_enh_64}{gain_enh_vs_64:.2f}% vs Base 64D)\")\n",
+    "if base_256_n20 is not None:\n",
+    "    print(f\"  • Baseline 256D : NDCG@20 = {base_256_n20:.4f} ({sign_64}{gain_vs_64:.2f}% vs Base 64D)\")\n",
+    "    print(f\"  • Enhanced 256D : NDCG@20 = {ENHANCED_256D['NDCG@20']:.4f} ({delta_vs_256_str} vs Base 256D, {sign_enh_64}{gain_enh_vs_64:.2f}% vs Base 64D)\")\n",
     "else:\n",
-    "    print(f\"  • Enhanced 512D : NDCG@20 = {ENHANCED_512D['NDCG@20']:.4f} ({sign_enh_64}{gain_enh_vs_64:.2f}% vs Base 64D)\")\n",
+    "    print(f\"  • Enhanced 256D : NDCG@20 = {ENHANCED_256D['NDCG@20']:.4f} ({sign_enh_64}{gain_enh_vs_64:.2f}% vs Base 64D)\")\n",
     "print('=' * 85)\n"
 ]
 
@@ -547,9 +547,9 @@ new_cells = [
 
 nb["cells"] = new_cells
 
-out_path = r"d:\STAIR-Enhanced\notebook\stair_sports_512d.ipynb"
+out_path = r"d:\STAIR-Enhanced\notebook\stair_sports_256d.ipynb"
 os.makedirs(os.path.dirname(out_path), exist_ok=True)
 with open(out_path, "w", encoding="utf-8") as f:
     json.dump(nb, f, indent=1, ensure_ascii=False)
 
-print(f"[OK] Successfully generated notebook for Sports 512D: {out_path}")
+print(f"[OK] Successfully generated notebook for Sports 256D: {out_path}")
