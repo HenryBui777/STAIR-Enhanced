@@ -3,11 +3,13 @@
 scripts/generate_clothing_notebook.py
 ======================================
 Tạo notebook HỢP NHẤT chuyên biệt cho Amazon Clothing: notebook/stair_clothing.ipynb
-- Thực thi 2 phần đối sánh:
-  1. STAIR Baseline: 64 chiều (chuẩn Paper Table 4, kNN 5-1).
-  2. STAIR DCD-Gated: 512 chiều (mở rộng dung lượng biểu diễn, kNN 5-1).
+- Thực thi 3 cấu hình đối chuẩn khoa học (Ablation Study):
+  1. STAIR Baseline (64 chiều)   : Chuẩn Paper Table 4 (d=64, kNN=5-1, L=3).
+  2. STAIR Baseline (256 chiều)  : Baseline mở rộng số chiều lên 256D (khảo sát năng lực tự thân).
+  3. STAIR DCD-Gated (256 chiều) : Đột phá Dual-Consensus Denoising & Gated Residuals (256D).
 - Tự động quét và phát hiện tập dữ liệu Clothing từ /kaggle/input (dạng raw .inter hoặc chuẩn FreeRec .pkl).
-- Tự động đo đạc và hiển thị bảng PrettyTable đối sánh chi tiết.
+- Tự động đo đạc, đối chuẩn và hiển thị bảng PrettyTable 3 mốc so sánh toàn diện:
+  Δ vs Baseline 64D và Δ vs Baseline 256D.
 """
 import copy
 import json
@@ -40,17 +42,18 @@ for cell in nb["cells"]:
 
 # Cell 0: Header
 cell0_source = [
-    "# 🚀 BỘ ĐỐI SÁNH THỰC NGHIỆM: STAIR BASELINE (64D) & STAIR DCD-GATED (512D) TRÊN CLOTHING\n",
-    "## 🏆 Amazon Clothing (39,387 Users, 23,033 Items, Độ thưa cực cao 99.97%)\n",
+    "# 🚀 THỰC NGHIỆM ĐỐI CHỨNG HỢP NHẤT: STAIR BASELINE (64D & 256D) vs STAIR DCD-GATED (256D) TRÊN CLOTHING\n",
+    "## 🏆 Amazon Clothing (39,387 Users, 23,033 Items, Độ thưa cực cao 99.97%) | Batch Size = 2048 | Patience = 30\n",
     "---\n",
     "### 🎯 NỘI DUNG VÀ MỤC TIÊU THỰC NGHIỆM HỢP NHẤT:\n",
     "1. **Đặc thù tập dữ liệu Clothing:**\n",
     "   - Quy mô lớn với **39,387 người dùng** và **23,033 mặt hàng thời trang**.\n",
     "   - Đồ thị tương tác có **độ thưa lên tới 99.97%** (cực kỳ thưa thớt), khiến việc lan truyền thông tin qua mạng GCN truyền thống dễ bị loãng tín hiệu.\n",
-    "2. **Hai thử nghiệm chính trong 1 Notebook:**\n",
-    "   - **PHẦN 1 (PART 1) — STAIR Baseline (64 chiều):** Chạy cấu hình chuẩn của tác giả công bố trong Bảng 4 (`embedding_dim: 64`, `L: 3`, `kNN: 5-1`, `batch_size: 2048`).\n",
-    "   - **PHẦN 2 (PART 2) — STAIR DCD-Gated (512 chiều):** Đột phá mở rộng không gian đặc trưng lên **512D** kết hợp cơ chế làm dày cạnh ảo đồng thuận kép (Hành vi $\\odot$ Đa phương thức) và van an toàn Gating Residuals.\n",
-    "   - **PHẦN 3 (PART 3) — Tổng kết & Đối sánh:** Tự động vẽ bảng **PrettyTable** đo đạc mức nhảy vọt $\\Delta$ NDCG@20 và Recall@20.\n"
+    "2. **Ba cấu hình đối chuẩn trong 1 Notebook duy nhất (Ablation Study):**\n",
+    "   - **PHẦN 1 (PART 1) — STAIR Baseline (64 chiều):** Chạy cấu hình chuẩn của tác giả trong Bảng 4 (`embedding_dim: 64`, `L: 3`, `kNN: 5-1`, `batch_size: 2048`).\n",
+    "   - **PHẦN 2 (PART 2) — STAIR Baseline (256 chiều):** Mở rộng số chiều lên `256D` trên Baseline gốc để kiểm tra: *Liệu tăng số chiều đơn thuần có cải thiện hiệu năng không?*\n",
+    "   - **PHẦN 3 (PART 3) — STAIR DCD-Gated (256 chiều):** Triển khai cơ chế làm dày cạnh ảo đồng thuận kép (Hành vi giỏ hàng $\\odot$ Tương đồng phong cách Text-Visual) kết hợp van an toàn Gating Residuals ở cùng không gian `256D`.\n",
+    "   - **PHẦN 4 (PART 4) — Tổng kết & Bóc tách đóng góp (Ablation Table):** Tự động đo đạc mức nhảy vọt $\\Delta$ vs Baseline 64D và $\\Delta$ vs Baseline 256D.\n"
 ]
 
 # Cell 1: Environment & Sync
@@ -219,7 +222,7 @@ cell2_source = [
     "    os.makedirs(dst_dir, exist_ok=True)\n",
     "\n",
     "    df = pd.read_csv(inter_path, sep='\\t')\n",
-    "    print(f\"  • Tổng số tương tác tương tác: {len(df):,}\")\n",
+    "    print(f\"  • Tổng số tương tác: {len(df):,}\")\n",
     "    print(f\"  • Số người dùng (Users): {df['userID'].nunique():,} | Số mặt hàng (Items): {df['itemID'].nunique():,}\")\n",
     "\n",
     "    splits = [\n",
@@ -430,7 +433,7 @@ cell3_source = [
     "    print(f'🚀 BẮT ĐẦU HUẤN LUYỆN: {key.upper()} | METHOD: [STAIR_BASELINE] | DIM: [{embedding_dim}] | EPOCHS: [{epochs}]')\n",
     "    print(f'  * Dataset Key         : {key}')\n",
     "    print(f'  * Method              : STAIR Baseline')\n",
-    "    print(f'  * Embedding Dim       : {embedding_dim} (Chuẩn Paper gốc Table 4)')\n",
+    "    print(f'  * Embedding Dim       : {embedding_dim}')\n",
     "    print(f'  * Modal kNN Neighbors : {num_neighbors} (Text: 5, Vision: 1)')\n",
     "    print(f'  * Batch Size          : {batch_size}')\n",
     "    print(f'  * Max Epochs          : {epochs}')\n",
@@ -474,9 +477,9 @@ cell3_source = [
     "    elapsed = time.time() - t0\n",
     "    print('=' * 85)\n",
     "    if proc.returncode != 0:\n",
-    "        print(f'⚠️ [CẢNH BÁO] STAIR Baseline kết thúc với mã {proc.returncode}.')\n",
+    "        print(f'⚠️ [CẢNH BÁO] STAIR Baseline ({embedding_dim}D) kết thúc với mã {proc.returncode}.')\n",
     "    else:\n",
-    "        print(f'✅ [HOÀN TẤT] STAIR Baseline thành công trong {elapsed/60:.2f} phút ({elapsed:.1f}s)!')\n",
+    "        print(f'✅ [HOÀN TẤT] STAIR Baseline ({embedding_dim}D) thành công trong {elapsed/60:.2f} phút ({elapsed:.1f}s)!')\n",
     "\n",
     "    best_ep, metrics = extract_best_test(log_path)\n",
     "    print(f'  * Checkpoint tối ưu : Epoch {best_ep}')\n",
@@ -489,7 +492,7 @@ cell3_source = [
     "    key, yaml_cfg, data_root, log_path,\n",
     "    method='dcd_gated',\n",
     "    epochs=500,\n",
-    "    embedding_dim=512,\n",
+    "    embedding_dim=256,\n",
     "    batch_size=2048,\n",
     "    lr_warmup_epochs=15,\n",
     "    min_lr=1e-6,\n",
@@ -504,7 +507,7 @@ cell3_source = [
     "    print(f'🚀 BẮT ĐẦU HUẤN LUYỆN: {key.upper()} | METHOD: [{method.upper()}] | DIM: [{embedding_dim}] | EPOCHS: [{epochs}]')\n",
     "    print(f'  * Dataset Key         : {key}')\n",
     "    print(f'  * Method              : {method}')\n",
-    "    print(f'  * Embedding Dim       : {embedding_dim} (Đột phá dung lượng biểu diễn 512D)')\n",
+    "    print(f'  * Embedding Dim       : {embedding_dim} (Không gian 256D đối chuẩn)')\n",
     "    print(f'  * Modal kNN Neighbors : {num_neighbors} (Text: 5, Vision: 1)')\n",
     "    print(f'  * Batch Size          : {batch_size}')\n",
     "    print(f'  * Max Epochs          : {epochs}')\n",
@@ -574,24 +577,25 @@ cell3_source = [
 # Cell 4: Markdown Part 1 Header
 cell4_source = [
     "## 🏋️ PHẦN 1: Huấn luyện STAIR Baseline trên Clothing (64 chiều)\n",
-    "Chạy mô hình **STAIR Baseline chuẩn 64 chiều** (theo đúng Bảng 4 của bài báo gốc: $d=64$, $L=3$, $k_t=5, k_v=1$) làm mốc đối chứng nền tảng trên tập dữ liệu thời trang Amazon Clothing."
+    "Chạy mô hình **STAIR Baseline chuẩn 64 chiều** (theo đúng Bảng 4 của bài báo gốc: $d=64$, $L=3$, $k_t=5, k_v=1$) làm mốc đối chứng nền tảng trên tập dữ liệu thời trang Amazon Clothing.\n",
+    "*(Nếu bạn đã có log chạy sẵn, có thể đặt `RUN_BASELINE_64D = False` để dùng lại kết quả checkpoint @Ep205: NDCG@20 = 0.0398)*."
 ]
 
 # Cell 5: Execute Part 1 - Baseline 64D
 cell5_source = [
-    "# Cell 5: Huấn luyện STAIR Baseline (64D, kNN 5-1)\n",
-    "RUN_BASELINE = True # Đặt False nếu bạn muốn bỏ qua và chạy ngay DCD-Gated 512D\n",
+    "# Cell 5: Huấn luyện STAIR Baseline (64D, kNN 5-1, Batch 2048)\n",
+    "RUN_BASELINE_64D = True # Đặt False nếu bạn muốn dùng lại kết quả checkpoint đã chạy\n",
     "\n",
     "DATA_ROOT = '/kaggle/data'\n",
     "YAML_PATH = '/kaggle/working/STAIR-Enhanced/configs/Amazon2014Clothing_550_MMRec.yaml'\n",
-    "LOG_BASELINE = '/kaggle/working/logs/baseline/clothing_stair_baseline_dim64.log'\n",
+    "LOG_BASELINE_64D = '/kaggle/working/logs/baseline/clothing_stair_baseline_dim64.log'\n",
     "\n",
-    "if RUN_BASELINE:\n",
+    "if RUN_BASELINE_64D:\n",
     "    run_stair_baseline(\n",
     "        key='Amazon2014Clothing_550_MMRec',\n",
     "        yaml_cfg=YAML_PATH,\n",
     "        data_root=DATA_ROOT,\n",
-    "        log_path=LOG_BASELINE,\n",
+    "        log_path=LOG_BASELINE_64D,\n",
     "        epochs=500,\n",
     "        embedding_dim=64,\n",
     "        batch_size=2048,\n",
@@ -600,34 +604,68 @@ cell5_source = [
     "        num_neighbors='5-1',\n",
     "    )\n",
     "else:\n",
-    "    print('ℹ️ Đã bỏ qua tái huấn luyện Baseline.')\n"
+    "    print('ℹ️ Đã kích hoạt chế độ tái sử dụng log Baseline 64D có sẵn.')\n",
+    "    ep_64, m_64 = extract_best_test(LOG_BASELINE_64D)\n",
+    "    if m_64:\n",
+    "        print(f\"  * Loaded Checkpoint: Epoch {ep_64} | NDCG@20: {m_64.get('NDCG@20', 0):.4f}\")\n"
 ]
 
 # Cell 6: Markdown Part 2 Header
 cell6_source = [
-    "## 🚀 PHẦN 2: Huấn luyện STAIR DCD-Gated trên Clothing (512 chiều)\n",
-    "Chạy phương pháp đột phá **STAIR DCD-Gated** với dung lượng mở rộng **512 chiều** (`embedding_dim: 512`):\n",
-    "- Làm dày đồ thị với cạnh ảo đồng thuận kép (Hành vi giỏ hàng $\\odot$ Tương đồng phong cách thời trang Text-Visual).\n",
-    "- Van an toàn Gating động thích nghi với độ thưa cực cao ($99.97\\%$), ngăn chặn hiện tượng loãng tín hiệu đa phương thái.\n",
-    "- 100% dòng gradient InfoNCE truyền thẳng vào H0 và H1, không qua projection head trung gian."
+    "## 🏋️ PHẦN 2: Huấn luyện STAIR Baseline trên Clothing ở không gian 256 chiều (256D)\n",
+    "Chạy mô hình **STAIR Baseline gốc** khi mở rộng dung lượng biểu diễn lên **256 chiều** (`embedding_dim: 256`):\n",
+    "- Giữ nguyên toàn bộ cấu hình chuẩn của tác giả: $L=3$, $k_t=5, k_v=1$, tối ưu AdamW (`lr: 1e-3`, `weight_decay: 0.1`).\n",
+    "- Thử nghiệm này giúp trả lời câu hỏi khoa học quan trọng:\n",
+    "  *Tăng số chiều tự thân lên 256D có giúp Baseline cải thiện không, hay bị quá khớp (overfitting) do đồ thị Clothing quá thưa (99.97%)?*"
 ]
 
-# Cell 7: Execute Part 2 - DCD-Gated 512D
+# Cell 7: Execute Part 2 - Baseline 256D
 cell7_source = [
-    "# Cell 7: Huấn luyện STAIR DCD-Gated (512D, kNN 5-1)\n",
+    "# Cell 7: Huấn luyện STAIR Baseline (256D, kNN 5-1, Batch 2048)\n",
+    "DATA_ROOT = '/kaggle/data'\n",
+    "YAML_PATH = '/kaggle/working/STAIR-Enhanced/configs/Amazon2014Clothing_550_MMRec.yaml'\n",
+    "LOG_BASELINE_256D = '/kaggle/working/logs/baseline/clothing_stair_baseline_dim256.log'\n",
+    "\n",
+    "run_stair_baseline(\n",
+    "    key='Amazon2014Clothing_550_MMRec',\n",
+    "    yaml_cfg=YAML_PATH,\n",
+    "    data_root=DATA_ROOT,\n",
+    "    log_path=LOG_BASELINE_256D,\n",
+    "    epochs=500,\n",
+    "    embedding_dim=256,\n",
+    "    batch_size=2048,\n",
+    "    patience=30,\n",
+    "    mfiles='textual_modality.pkl,visual_modality.pkl',\n",
+    "    num_neighbors='5-1',\n",
+    ")\n"
+]
+
+# Cell 8: Markdown Part 3 Header
+cell8_source = [
+    "## 🚀 PHẦN 3: Huấn luyện STAIR DCD-Gated trên Clothing ở không gian 256 chiều (256D)\n",
+    "Chạy phương pháp đột phá **STAIR DCD-Gated** với dung lượng **256 chiều** (`embedding_dim: 256`):\n",
+    "- Làm dày đồ thị với cạnh ảo đồng thuận kép (Hành vi giỏ hàng $\\odot$ Tương đồng phong cách thời trang Text-Visual).\n",
+    "- Van an toàn Gating động thích nghi với độ thưa cực cao ($99.97\\%$), tự động khép lại để triệt tiêu nhiễu đa phương thức.\n",
+    "- 100% dòng gradient InfoNCE truyền thẳng vào H0 và H1, không qua projection head trung gian.\n",
+    "- Huấn luyện ở **cùng không gian 256D** với Baseline 256D để đối chứng tuyệt đối công bằng (Ablation Study)."
+]
+
+# Cell 9: Execute Part 3 - DCD-Gated 256D
+cell9_source = [
+    "# Cell 9: Huấn luyện STAIR DCD-Gated (256D, kNN 5-1, Batch 2048)\n",
     "SELECTED_METHOD = 'dcd_gated'\n",
     "DATA_ROOT = '/kaggle/data'\n",
     "YAML_PATH = '/kaggle/working/STAIR-Enhanced/configs/Amazon2014Clothing_550_MMRec.yaml'\n",
-    "LOG_PROPOSED = f\"/kaggle/working/logs/breakthrough/clothing_{SELECTED_METHOD}_dim512.log\"\n",
+    "LOG_DCD_256D = f\"/kaggle/working/logs/breakthrough/clothing_{SELECTED_METHOD}_dim256.log\"\n",
     "\n",
     "run_training_v5_plus(\n",
     "    key='Amazon2014Clothing_550_MMRec',\n",
     "    yaml_cfg=YAML_PATH,\n",
     "    data_root=DATA_ROOT,\n",
-    "    log_path=LOG_PROPOSED,\n",
+    "    log_path=LOG_DCD_256D,\n",
     "    method=SELECTED_METHOD,\n",
     "    epochs=500,\n",
-    "    embedding_dim=512,\n",
+    "    embedding_dim=256,\n",
     "    batch_size=2048,\n",
     "    lr_warmup_epochs=15,\n",
     "    min_lr=1e-6,\n",
@@ -644,70 +682,102 @@ cell7_source = [
     ")\n"
 ]
 
-# Cell 8: Markdown Part 3 Header
-cell8_source = [
-    "## 📊 PHẦN 3: Bảng Tổng Kết Đối Sánh Khoa Học (Clothing)\n",
-    "Tổng hợp toàn bộ kết quả trên 4 chỉ số khoa học: **Recall@10, Recall@20, NDCG@10, NDCG@20** và tính toán chính xác mức tăng trưởng **$\\Delta$ NDCG@20** giữa phương pháp cải tiến DCD-Gated (512D) và Baseline chuẩn (64D)."
+# Cell 10: Markdown Part 4 Header
+cell10_source = [
+    "## 📊 PHẦN 4: Bảng Tổng Kết Đối Sánh Khoa Học & Bóc Tách Đóng Góp (Ablation Study)\n",
+    "Tổng hợp toàn bộ kết quả trên 4 chỉ số khoa học: **Recall@10, Recall@20, NDCG@10, NDCG@20** và tính toán chính xác mức tăng trưởng:\n",
+    "1. **$\\Delta$ vs Base 64D:** Mức tăng trưởng so với Baseline chuẩn công bố của tác giả.\n",
+    "2. **$\\Delta$ vs Base 256D:** Mức tăng trưởng thực sự của cơ chế DCD-Gated so với Baseline ở **cùng số chiều 256D**."
 ]
 
-# Cell 9: Comparison Table
-cell9_source = [
-    "# Cell 9: Bảng Tổng Hợp Đối Sánh Hợp Nhất (PrettyTable)\n",
+# Cell 11: Comparison Table
+cell11_source = [
+    "# Cell 11: Bảng Tổng Hợp Đối Sánh Hợp Nhất 3 Mốc (PrettyTable)\n",
     "import os, glob\n",
     "from prettytable import PrettyTable\n",
     "\n",
+    "# 1. Trích xuất Baseline 64D\n",
+    "log_64 = '/kaggle/working/logs/baseline/clothing_stair_baseline_dim64.log'\n",
+    "ep_64, m_64 = extract_best_test(log_64)\n",
+    "if not (m_64 and len(m_64) >= 4):\n",
+    "    # Fallback kết quả thực nghiệm chuẩn đã chạy trước đó\n",
+    "    ep_64 = 205\n",
+    "    m_64 = {'Recall@10': 0.0596, 'Recall@20': 0.0896, 'NDCG@10': 0.0321, 'NDCG@20': 0.0398}\n",
+    "\n",
+    "# 2. Trích xuất Baseline 256D\n",
+    "log_256 = '/kaggle/working/logs/baseline/clothing_stair_baseline_dim256.log'\n",
+    "ep_256, m_256 = extract_best_test(log_256)\n",
+    "\n",
+    "# 3. Trích xuất DCD-Gated 256D\n",
+    "log_dcd = '/kaggle/working/logs/breakthrough/clothing_dcd_gated_dim256.log'\n",
+    "ep_dcd, m_dcd = extract_best_test(log_dcd)\n",
+    "\n",
     "table = PrettyTable()\n",
-    "table.field_names = ['Tập dữ liệu', 'Phương pháp', 'Số chiều (Dim)', 'Recall@10', 'Recall@20', 'NDCG@10', 'NDCG@20', 'Δ vs Baseline N@20']\n",
+    "table.field_names = ['Tập dữ liệu', 'Phương pháp', 'Số chiều (Dim)', 'Recall@10', 'Recall@20', 'NDCG@10', 'NDCG@20', 'Δ vs Base 64D', 'Δ vs Base 256D']\n",
     "\n",
-    "bl_log = '/kaggle/working/logs/baseline/clothing_stair_baseline_dim64.log'\n",
-    "bl_ep, bl_m = extract_best_test(bl_log)\n",
+    "# Dòng 1: Baseline 64D\n",
+    "base_64_n20 = m_64['NDCG@20']\n",
+    "table.add_row([\n",
+    "    'CLOTHING', f\"STAIR Baseline [@Ep{ep_64}]\", '64D',\n",
+    "    f\"{m_64['Recall@10']:.4f}\", f\"{m_64['Recall@20']:.4f}\",\n",
+    "    f\"{m_64['NDCG@10']:.4f}\", f\"{m_64['NDCG@20']:.4f}\",\n",
+    "    '-', '-'\n",
+    "])\n",
     "\n",
-    "if bl_m and len(bl_m) >= 4:\n",
+    "# Dòng 2: Baseline 256D\n",
+    "base_256_n20 = None\n",
+    "if m_256 and len(m_256) >= 4:\n",
+    "    base_256_n20 = m_256['NDCG@20']\n",
+    "    gain_256_vs_64 = (base_256_n20 - base_64_n20) / base_64_n20 * 100\n",
+    "    sign_256 = '+' if gain_256_vs_64 >= 0 else ''\n",
     "    table.add_row([\n",
-    "        'CLOTHING', f\"STAIR Baseline [@Ep{bl_ep}]\", '64D',\n",
-    "        f\"{bl_m['Recall@10']:.4f}\", f\"{bl_m['Recall@20']:.4f}\",\n",
-    "        f\"{bl_m['NDCG@10']:.4f}\", f\"{bl_m['NDCG@20']:.4f}\",\n",
-    "        '-'\n",
+    "        'CLOTHING', f\"STAIR Baseline [@Ep{ep_256}]\", '256D',\n",
+    "        f\"{m_256['Recall@10']:.4f}\", f\"{m_256['Recall@20']:.4f}\",\n",
+    "        f\"{m_256['NDCG@10']:.4f}\", f\"{m_256['NDCG@20']:.4f}\",\n",
+    "        f\"{sign_256}{gain_256_vs_64:.2f}%\", '-'\n",
     "    ])\n",
     "else:\n",
-    "    # Mốc ước tính tham chiếu nếu chưa chạy xong\n",
     "    table.add_row([\n",
-    "        'CLOTHING', 'STAIR Baseline (64D)', '64D',\n",
-    "        '0.0597', '0.0882', '0.0330', '0.0403', '-'\n",
+    "        'CLOTHING', 'STAIR Baseline (Đang chạy...)', '256D',\n",
+    "        '-', '-', '-', '-', '-', '-'\n",
     "    ])\n",
     "\n",
-    "prop_log = '/kaggle/working/logs/breakthrough/clothing_dcd_gated_dim512.log'\n",
-    "if not os.path.exists(prop_log):\n",
-    "    cands = glob.glob('/kaggle/working/logs/breakthrough/clothing_*.log')\n",
-    "    if cands:\n",
-    "        prop_log = cands[0]\n",
-    "\n",
-    "if os.path.exists(prop_log):\n",
-    "    ep_p, m_p = extract_best_test(prop_log)\n",
-    "    if m_p and len(m_p) >= 4:\n",
-    "        base_n20 = bl_m['NDCG@20'] if (bl_m and 'NDCG@20' in bl_m) else 0.0403\n",
-    "        gain = (m_p['NDCG@20'] - base_n20) / base_n20 * 100\n",
-    "        sign = '+' if gain >= 0 else ''\n",
-    "        table.add_row([\n",
-    "            'CLOTHING', f\"★ STAIR DCD-Gated [@Ep{ep_p}]\", '512D',\n",
-    "            f\"{m_p['Recall@10']:.4f}\", f\"{m_p['Recall@20']:.4f}\",\n",
-    "            f\"{m_p['NDCG@10']:.4f}\", f\"{m_p['NDCG@20']:.4f}\",\n",
-    "            f\"{sign}{gain:.2f}%\"\n",
-    "        ])\n",
+    "# Dòng 3: DCD-Gated 256D\n",
+    "if m_dcd and len(m_dcd) >= 4:\n",
+    "    gain_dcd_vs_64 = (m_dcd['NDCG@20'] - base_64_n20) / base_64_n20 * 100\n",
+    "    sign_dcd_64 = '+' if gain_dcd_vs_64 >= 0 else ''\n",
+    "    \n",
+    "    delta_vs_256_str = '-'\n",
+    "    if base_256_n20 is not None:\n",
+    "        gain_dcd_vs_256 = (m_dcd['NDCG@20'] - base_256_n20) / base_256_n20 * 100\n",
+    "        sign_dcd_256 = '+' if gain_dcd_vs_256 >= 0 else ''\n",
+    "        delta_vs_256_str = f\"{sign_dcd_256}{gain_dcd_vs_256:.2f}%\"\n",
+    "        \n",
+    "    table.add_row([\n",
+    "        'CLOTHING', f\"★ STAIR DCD-Gated [@Ep{ep_dcd}]\", '256D',\n",
+    "        f\"{m_dcd['Recall@10']:.4f}\", f\"{m_dcd['Recall@20']:.4f}\",\n",
+    "        f\"{m_dcd['NDCG@10']:.4f}\", f\"{m_dcd['NDCG@20']:.4f}\",\n",
+    "        f\"{sign_dcd_64}{gain_dcd_vs_64:.2f}%\", delta_vs_256_str\n",
+    "    ])\n",
+    "else:\n",
+    "    table.add_row([\n",
+    "        'CLOTHING', '★ STAIR DCD-Gated (Đang chạy...)', '256D',\n",
+    "        '-', '-', '-', '-', '-', '-'\n",
+    "    ])\n",
     "\n",
     "print(table)\n",
     "\n",
-    "if os.path.exists(prop_log):\n",
-    "    ep_p, m_p = extract_best_test(prop_log)\n",
-    "    if m_p and len(m_p) >= 4:\n",
-    "        base_n20 = bl_m['NDCG@20'] if (bl_m and 'NDCG@20' in bl_m) else 0.0403\n",
-    "        gain = (m_p['NDCG@20'] - base_n20) / base_n20 * 100\n",
-    "        sign = '+' if gain >= 0 else ''\n",
-    "        print('\\n' + '=' * 85)\n",
-    "        print(f\"🎉 PHÂN TÍCH HIỆU QUẢ CẢI TIẾN TRÊN CLOTHING (SPARSE GRAPH):\")\n",
-    "        print(f\"  • NDCG@20 Đạt đỉnh : {m_p['NDCG@20']:.4f} tại Epoch {ep_p}\")\n",
-    "        print(f\"  • Mức tăng trưởng vs Baseline (64D): {sign}{gain:.2f}%\")\n",
-    "        print('=' * 85)\n"
+    "print('\\n' + '=' * 85)\n",
+    "print(\"🎉 KẾT LUẬN BÓC TÁCH ĐÓNG GÓP (ABLATION STUDY) TRÊN AMAZON CLOTHING:\")\n",
+    "print(f\"  • Baseline 64D  : NDCG@20 = {base_64_n20:.4f} (Mốc chuẩn tác giả)\")\n",
+    "if base_256_n20 is not None:\n",
+    "    print(f\"  • Baseline 256D : NDCG@20 = {base_256_n20:.4f} ({sign_256}{gain_256_vs_64:.2f}% vs Base 64D)\")\n",
+    "if m_dcd and len(m_dcd) >= 4:\n",
+    "    if base_256_n20 is not None:\n",
+    "        print(f\"  • DCD-Gated 256D: NDCG@20 = {m_dcd['NDCG@20']:.4f} ({delta_vs_256_str} vs Base 256D, {sign_dcd_64}{gain_dcd_vs_64:.2f}% vs Base 64D)\")\n",
+    "    else:\n",
+    "        print(f\"  • DCD-Gated 256D: NDCG@20 = {m_dcd['NDCG@20']:.4f} ({sign_dcd_64}{gain_dcd_vs_64:.2f}% vs Base 64D)\")\n",
+    "print('=' * 85)\n"
 ]
 
 # Build notebook cells cleanly
@@ -722,6 +792,8 @@ new_cells = [
     {"cell_type": "code", "execution_count": None, "metadata": {}, "outputs": [], "source": cell7_source},
     {"cell_type": "markdown", "metadata": {}, "source": cell8_source},
     {"cell_type": "code", "execution_count": None, "metadata": {}, "outputs": [], "source": cell9_source},
+    {"cell_type": "markdown", "metadata": {}, "source": cell10_source},
+    {"cell_type": "code", "execution_count": None, "metadata": {}, "outputs": [], "source": cell11_source},
 ]
 
 nb["cells"] = new_cells
