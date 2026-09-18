@@ -61,7 +61,7 @@ DATASET_CONFIGS = {
         "item_count": 7050,
         "interactions": "160K",
         "sparsity": "99.88%",
-        "batch_size": 1024,
+        "batch_size": 512,
         "color": "#1f77b4",
         "paper_table": "STAIR Baseline 64D (Paper Table 2): Recall@10 = 0.0674 | Recall@20 = 0.1042 | NDCG@10 = 0.0359 | NDCG@20 = 0.0454",
         "paper_benchmarks": {"Recall@10": 0.0674, "Recall@20": 0.1042, "NDCG@10": 0.0359, "NDCG@20": 0.0454},
