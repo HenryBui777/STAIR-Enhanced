@@ -306,27 +306,6 @@ class CoachForSTAIR(freerec.launcher.Coach):
 
     def evaluate(self, epoch: int = 0, mode: str = 'valid'):
         super().evaluate(epoch, mode=mode)
-        if mode == 'valid':
-            try:
-                if not hasattr(self, '_patience_counter'):
-                    self._patience_counter = 0
-                    self._best_ep = getattr(self, 'best_epoch', 0)
-
-                cur_best_ep = getattr(self, 'best_epoch', 0)
-                if cur_best_ep == epoch:
-                    self._patience_counter = 0
-                    self._best_ep = epoch
-                else:
-                    self._patience_counter += 1
-                    patience = getattr(self.cfg, 'patience', 30)
-                    if self._patience_counter >= patience:
-                        print(
-                            f"\n🛑 [EARLY STOPPING TRIGGERED] Kích hoạt dừng sớm sau {patience} lần đánh giá "
-                            f"không cải thiện {getattr(self.cfg, 'which4best', 'NDCG@20')} (Best Epoch: {self._best_ep}).\n"
-                        )
-                        self.cfg.epochs = epoch + 1
-            except Exception as e:
-                pass
 
 
 def main():
