@@ -140,9 +140,9 @@ DATASET_CONFIGS = {
         "interactions": "278K",
         "sparsity": "99.97%",
         "batch_size": 1024,
-        "epochs": 300,
-        "patience": 20,
-        "early_stop_warmup": 100,
+        "epochs": 500,
+        "patience": 30,
+        "early_stop_warmup": 200,
         "color": "#9467bd",
         "paper_table": "STAIR Baseline 64D (Paper Reference): Recall@10 = 0.0596 | Recall@20 = 0.0896 | NDCG@10 = 0.0321 | NDCG@20 = 0.0398",
         "paper_benchmarks": {"Recall@10": 0.0596, "Recall@20": 0.0896, "NDCG@10": 0.0321, "NDCG@20": 0.0398},
@@ -181,7 +181,7 @@ def build_notebook_for_dataset(dkey, info):
     target_patience = info.get("patience", 30)
     target_warmup = info.get("early_stop_warmup", 200)
     extra_chunk_tag = " | Chunk Size = `2000` (Zero-OOM Engine)" if dkey == "electronics" else ""
-    if dkey in ["clothing", "electronics"]:
+    if dkey == "electronics":
         es_tag = f" | Early Stopping = `Bật sau Warmup Ep{target_warmup} (Patience {target_patience})`"
     else:
         es_tag = " | Early Stopping = `Tắt (Full 500 Eps SOTA)`"

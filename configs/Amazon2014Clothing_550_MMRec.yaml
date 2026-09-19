@@ -4,14 +4,11 @@ dataset: Amazon2014Clothing_550_MMRec
 embedding_dim: 64
 num_layers: 3
 
-epochs: 300
+epochs: 500
 batch_size: 1024
 optimizer: adamwsevo
 lr: 1.e-3
 weight_decay: 0.1
-patience: 20
-early_stop_warmup: 100
-eval_freq: 5
 
 gamma: 0.2
 mfiles: textual_modality.pkl,visual_modality.pkl

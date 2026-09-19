@@ -311,8 +311,8 @@ class CoachForSTAIR(freerec.launcher.Coach):
         self.best_epoch = 0
         self.patience_counter = 0
         ds_lower = getattr(self.cfg, 'dataset', '').lower()
-        default_warmup = 100 if any(k in ds_lower for k in ['electronic', 'clothing']) else 200
-        default_patience = 20 if any(k in ds_lower for k in ['electronic', 'clothing']) else 30
+        default_warmup = 100 if 'electronic' in ds_lower else 200
+        default_patience = 20 if 'electronic' in ds_lower else 30
         self.early_stop_warmup = getattr(self.cfg, 'early_stop_warmup', default_warmup)
         self.patience = getattr(self.cfg, 'patience', default_patience)
 
@@ -321,7 +321,7 @@ class CoachForSTAIR(freerec.launcher.Coach):
         if mode == 'valid':
             try:
                 ds_lower = getattr(self.cfg, 'dataset', '').lower()
-                enable_es = any(k in ds_lower for k in ['clothing', 'electronic'])
+                enable_es = any(k in ds_lower for k in ['electronic'])
 
                 meters = getattr(self, 'meters', None)
                 if meters is None and hasattr(self, 'monitor') and hasattr(self.monitor, 'meters'):
