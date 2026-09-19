@@ -4,7 +4,9 @@ dataset: Amazon2014Electronics_550_MMRec
 embedding_dim: 64
 num_layers: 3
 
-epochs: 500
+epochs: 250
+patience: 20
+early_stop_warmup: 100
 batch_size: 2048
 optimizer: adamwsevo
 lr: 1.e-3

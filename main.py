@@ -309,8 +309,11 @@ class CoachForSTAIR(freerec.launcher.Coach):
         self.best_ndcg20 = -1.0
         self.best_epoch = 0
         self.patience_counter = 0
-        self.early_stop_warmup = getattr(self.cfg, 'early_stop_warmup', 200)
-        self.patience = getattr(self.cfg, 'patience', 30)
+        ds_lower = getattr(self.cfg, 'dataset', '').lower()
+        default_warmup = 100 if 'electronic' in ds_lower else 200
+        default_patience = 20 if 'electronic' in ds_lower else 30
+        self.early_stop_warmup = getattr(self.cfg, 'early_stop_warmup', default_warmup)
+        self.patience = getattr(self.cfg, 'patience', default_patience)
 
     def evaluate(self, epoch: int = 0, mode: str = 'valid'):
         super().evaluate(epoch, mode=mode)

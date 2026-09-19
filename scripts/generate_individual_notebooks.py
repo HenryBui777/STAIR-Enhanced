@@ -62,6 +62,9 @@ DATASET_CONFIGS = {
         "interactions": "160K",
         "sparsity": "99.88%",
         "batch_size": 512,
+        "epochs": 500,
+        "patience": 30,
+        "early_stop_warmup": 200,
         "color": "#1f77b4",
         "paper_table": "STAIR Baseline 64D (Paper Table 2): Recall@10 = 0.0674 | Recall@20 = 0.1042 | NDCG@10 = 0.0359 | NDCG@20 = 0.0454",
         "paper_benchmarks": {"Recall@10": 0.0674, "Recall@20": 0.1042, "NDCG@10": 0.0359, "NDCG@20": 0.0454},
@@ -85,6 +88,9 @@ DATASET_CONFIGS = {
         "interactions": "296K",
         "sparsity": "99.95%",
         "batch_size": 1024,
+        "epochs": 500,
+        "patience": 30,
+        "early_stop_warmup": 200,
         "color": "#ff7f0e",
         "paper_table": "STAIR Baseline 64D (Paper Table 2): Recall@10 = 0.0743 | Recall@20 = 0.1117 | NDCG@10 = 0.0407 | NDCG@20 = 0.0503",
         "paper_benchmarks": {"Recall@10": 0.0743, "Recall@20": 0.1117, "NDCG@10": 0.0407, "NDCG@20": 0.0503},
@@ -108,6 +114,9 @@ DATASET_CONFIGS = {
         "interactions": "1.69M",
         "sparsity": "99.986%",
         "batch_size": 2048,
+        "epochs": 250,
+        "patience": 20,
+        "early_stop_warmup": 100,
         "color": "#2ca02c",
         "paper_table": "STAIR Baseline 64D (Paper Table 2): Recall@10 = 0.0440 | Recall@20 = 0.0663 | NDCG@10 = 0.0245 | NDCG@20 = 0.0302",
         "paper_benchmarks": {"Recall@10": 0.0440, "Recall@20": 0.0663, "NDCG@10": 0.0245, "NDCG@20": 0.0302},
@@ -131,6 +140,9 @@ DATASET_CONFIGS = {
         "interactions": "278K",
         "sparsity": "99.97%",
         "batch_size": 1024,
+        "epochs": 500,
+        "patience": 30,
+        "early_stop_warmup": 200,
         "color": "#9467bd",
         "paper_table": "STAIR Baseline 64D (Paper Reference): Recall@10 = 0.0596 | Recall@20 = 0.0896 | NDCG@10 = 0.0321 | NDCG@20 = 0.0398",
         "paper_benchmarks": {"Recall@10": 0.0596, "Recall@20": 0.0896, "NDCG@10": 0.0321, "NDCG@20": 0.0398},
@@ -165,8 +177,14 @@ def build_notebook_for_dataset(dkey, info):
     # Cell 0: Markdown - Header, Table of Configurations & Output Deliverables
     # ─────────────────────────────────────────────────────────────────────────
     has_cloth_64b = (dkey == "clothing")
+    target_epochs = info.get("epochs", 500)
+    target_patience = info.get("patience", 30)
+    target_warmup = info.get("early_stop_warmup", 200)
     extra_chunk_tag = " | Chunk Size = `2000` (Zero-OOM Engine)" if dkey == "electronics" else ""
-    es_tag = " | Early Stopping = `Bật sau Warmup Ep200 (Patience 30)`" if dkey in ["clothing", "electronics"] else " | Early Stopping = `Tắt (Full 500 Eps SOTA)`"
+    if dkey in ["clothing", "electronics"]:
+        es_tag = f" | Early Stopping = `Bật sau Warmup Ep{target_warmup} (Patience {target_patience})`"
+    else:
+        es_tag = " | Early Stopping = `Tắt (Full 500 Eps SOTA)`"
     c0 = [
         f"# 🚀 THỰC NGHIỆM ĐỐI CHUẨN ĐỘC LẬP: STAIR DCD-GATED TRÊN {title.upper()}\n",
         f"### 🏆 Quy mô: {users} Users | {items} Items | {inter} Interactions | Độ thưa {spar}\n",
@@ -174,7 +192,7 @@ def build_notebook_for_dataset(dkey, info):
         f"> **Tập dữ liệu:** {title} ({canon})\n",
         "> **Phương pháp:** STAIR DCD-Gated (Dual-Consensus Denoising & Gated Residuals)\n",
         "> **Backbone:** Stepwise Forward/Backward Spectral Graph Convolution (STAIR - AAAI 2025)\n",
-        f"> **Cấu hình tối ưu:** Batch Size = `{bs}`{extra_chunk_tag}{es_tag} | Epochs = `500` | Optimizer = `AdamWSEvo` | LR = `1e-3` (Warmup 15 eps -> Cosine Decay)\n",
+        f"> **Cấu hình tối ưu:** Batch Size = `{bs}`{extra_chunk_tag}{es_tag} | Epochs = `{target_epochs}` | Optimizer = `AdamWSEvo` | LR = `1e-3` (Warmup 15 eps -> Cosine Decay)\n",
         "\n",
         "### 📋 BẢNG 1: CÁC CẤU HÌNH THỰC NGHIỆM ĐƯỢC CHẠY TRONG NOTEBOOK NÀY\n",
         "| STT | Tên cấu hình | Không gian | Phương pháp | Max Epochs | Batch Size | Mô tả khoa học |\n",
@@ -182,16 +200,16 @@ def build_notebook_for_dataset(dkey, info):
     ]
     stt = 1
     if has_cloth_64b:
-        c0.append(f"| {stt} | `{dkey}_stair_baseline_dim64` | **64D** | STAIR Baseline | 500 | {bs} | Mốc kiểm chứng Baseline 64 chiều thực nghiệm |\n")
+        c0.append(f"| {stt} | `{dkey}_stair_baseline_dim64` | **64D** | STAIR Baseline | {target_epochs} | {bs} | Mốc kiểm chứng Baseline 64 chiều thực nghiệm |\n")
         stt += 1
-    c0.append(f"| {stt} | `{dkey}_dcd_gated_dim64` | **64D** | STAIR DCD-Gated | 500 | {bs} | Kiểm tra cơ chế làm dày cạnh ảo có van an toàn ở chiều cơ bản (64D) |\n")
+    c0.append(f"| {stt} | `{dkey}_dcd_gated_dim64` | **64D** | STAIR DCD-Gated | {target_epochs} | {bs} | Kiểm tra cơ chế làm dày cạnh ảo có van an toàn ở chiều cơ bản (64D) |\n")
     stt += 1
-    c0.append(f"| {stt} | `{dkey}_stair_baseline_dim256` | **256D** | STAIR Baseline | 500 | {bs} | Khảo sát năng lực mở rộng số chiều tự thân lên 256D (không có DCD) |\n")
+    c0.append(f"| {stt} | `{dkey}_stair_baseline_dim256` | **256D** | STAIR Baseline | {target_epochs} | {bs} | Khảo sát năng lực mở rộng số chiều tự thân lên 256D (không có DCD) |\n")
     stt += 1
     if dkey == "electronics":
-        c0.append(f"| {stt} | `{dkey}_dcd_gated_dim256` | **256D** | ★ STAIR DCD-Gated SOTA | 500 | {bs} | **Cấu hình đột phá SOTA:** Kết hợp mở rộng 256D + Làm dày cạnh ảo Đồng thuận kép (Chunk Size = 2000 Zero-OOM) + Van an toàn phi tuyến |\n")
+        c0.append(f"| {stt} | `{dkey}_dcd_gated_dim256` | **256D** | ★ STAIR DCD-Gated SOTA | {target_epochs} | {bs} | **Cấu hình đột phá SOTA:** Kết hợp mở rộng 256D + Làm dày cạnh ảo Đồng thuận kép (Chunk Size = 2000 Zero-OOM) + Van an toàn phi tuyến |\n")
     else:
-        c0.append(f"| {stt} | `{dkey}_dcd_gated_dim256` | **256D** | ★ STAIR DCD-Gated SOTA | 500 | {bs} | **Cấu hình đột phá SOTA:** Kết hợp mở rộng 256D + Làm dày cạnh ảo Đồng thuận kép + Van an toàn phi tuyến |\n")
+        c0.append(f"| {stt} | `{dkey}_dcd_gated_dim256` | **256D** | ★ STAIR DCD-Gated SOTA | {target_epochs} | {bs} | **Cấu hình đột phá SOTA:** Kết hợp mở rộng 256D + Làm dày cạnh ảo Đồng thuận kép + Van an toàn phi tuyến |\n")
 
     c0.extend([
         "\n",
@@ -206,7 +224,7 @@ def build_notebook_for_dataset(dkey, info):
     c0.append(f"| 📄 Log Huấn luyện | `logs/benchmark/{dkey}/{dkey}_dcd_gated_dim256.log` | Nhật ký loss, telemetry từng epoch của DCD-Gated 256D SOTA |\n")
     c0.append(f"| 📊 Bảng số liệu CSV | `reports/results_{dkey}.csv` | Bảng tổng hợp tất cả chỉ số (Recall, NDCG) và % chênh lệch $\\Delta$ vs Base 64D & vs Base 256D |\n")
     c0.append(f"| 📈 Bảng telemetry CSV | `reports/epoch_telemetry_{dkey}.csv` | Bảng đo đạc chi tiết từng epoch: Train BPR Loss, Valid Metrics, Time, Peak VRAM |\n")
-    c0.append(f"| 🖼️ Đồ thị 1 (PNG) | `reports/loss_{dkey}.png` | Biểu đồ đường cong BPR Training Loss qua 500 Epochs |\n")
+    c0.append(f"| 🖼️ Đồ thị 1 (PNG) | `reports/loss_{dkey}.png` | Biểu đồ đường cong BPR Training Loss qua {target_epochs} Epochs |\n")
     c0.append(f"| 🖼️ Đồ thị 2 (PNG) | `reports/ndcg20_{dkey}.png` | Biểu đồ tiến trình Validation NDCG@20 đối sánh với mốc chuẩn Paper |\n")
     c0.append(f"| 🖼️ Đồ thị 3 (PNG) | `reports/recall20_{dkey}.png` | Biểu đồ tiến trình Validation Recall@20 đối sánh với mốc chuẩn Paper |\n")
     c0.append(f"| 🖼️ Đồ thị 4 (PNG) | `reports/gpu_memory_{dkey}.png` | Biểu đồ bộ nhớ GPU VRAM Pure Tensor thời gian thực (chuẩn Table 5) |\n")
@@ -769,7 +787,7 @@ def build_notebook_for_dataset(dkey, info):
         "        print(f'✅ [ĐÃ XUẤT CSV KẾT QUẢ & % CHÊNH LỆCH]: {output_csv}')\n",
         "    return rows\n",
         "\n",
-        "def run_stair_baseline(key, yaml_cfg, data_root, log_path, epochs=500, embedding_dim=256, mfiles='textual_modality.pkl,visual_modality.pkl', num_neighbors='5-1'):\n",
+        "def run_stair_baseline(key, yaml_cfg, data_root, log_path, epochs=500, embedding_dim=256, mfiles='textual_modality.pkl,visual_modality.pkl', num_neighbors='5-1', patience=None):\n",
         "    print('=' * 85)\n",
         "    print(f'🚀 [TRAIN] {key.upper()} | BASELINE | DIM: [{embedding_dim}D] | EPOCHS: [{epochs}]')\n",
         "    os.makedirs(os.path.dirname(log_path), exist_ok=True)\n",
@@ -783,6 +801,7 @@ def build_notebook_for_dataset(dkey, info):
         "        '--embedding-dim', str(embedding_dim),\n",
         "        '--mfiles', mfiles, '--num-neighbors', num_neighbors,\n",
         "    ]\n",
+        "    if patience is not None: cmd.extend(['--patience', str(patience)])\n",
         "    with open(log_path, 'w', encoding='utf-8') as f:\n",
         "        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)\n",
         "        for line in proc.stdout:\n",
@@ -794,7 +813,7 @@ def build_notebook_for_dataset(dkey, info):
         "    print(f'✅ [HOÀN TẤT] {key.upper()} Baseline ({embedding_dim}D) trong {elapsed/60:.2f} phút | Best @Epoch {best_ep} | NDCG@20: {metrics.get(\"NDCG@20\", 0):.4f}')\n",
         "    return best_ep, metrics\n",
         "\n",
-        "def run_training_v5_plus(key, yaml_cfg, data_root, log_path, method='dcd_gated', epochs=500, embedding_dim=256, lr_warmup_epochs=15, min_lr=1e-6, tau=0.20, alpha_dir=0.50, eps=0.08, tau_thresh=0.85, lambda_cl=0.010, gamma_h=0.15, warmup_epochs=50, mfiles='textual_modality.pkl,visual_modality.pkl', num_neighbors='5-1'):\n",
+        "def run_training_v5_plus(key, yaml_cfg, data_root, log_path, method='dcd_gated', epochs=500, embedding_dim=256, lr_warmup_epochs=15, min_lr=1e-6, tau=0.20, alpha_dir=0.50, eps=0.08, tau_thresh=0.85, lambda_cl=0.010, gamma_h=0.15, warmup_epochs=50, mfiles='textual_modality.pkl,visual_modality.pkl', num_neighbors='5-1', patience=None):\n",
         "    print('=' * 85)\n",
         "    print(f'🚀 [TRAIN] {key.upper()} | METHOD: [{method.upper()}] | DIM: [{embedding_dim}D] | EPOCHS: [{epochs}]')\n",
         "    os.makedirs(os.path.dirname(log_path), exist_ok=True)\n",
@@ -812,6 +831,7 @@ def build_notebook_for_dataset(dkey, info):
         "        '--gamma-h', str(gamma_h), '--warmup-epochs', str(warmup_epochs),\n",
         "        '--mfiles', mfiles, '--num-neighbors', num_neighbors,\n",
         "    ]\n",
+        "    if patience is not None: cmd.extend(['--patience', str(patience)])\n",
         "    with open(log_path, 'w', encoding='utf-8') as f:\n",
         "        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)\n",
         "        for line in proc.stdout:\n",
@@ -878,24 +898,24 @@ def build_notebook_for_dataset(dkey, info):
             f"# 1. {title} Baseline 64D\n",
             f"log_64b = os.path.join(LOG_DIR, '{dkey}_stair_baseline_dim64.log')\n",
             "if RUN_64_BASE:\n",
-            f"    run_stair_baseline(key='{dkey}', yaml_cfg=YAML_CFG, data_root=DATA_ROOT, log_path=log_64b, epochs=500, embedding_dim=64)\n",
+            f"    run_stair_baseline(key='{dkey}', yaml_cfg=YAML_CFG, data_root=DATA_ROOT, log_path=log_64b, epochs={target_epochs}, embedding_dim=64)\n",
             "\n",
         ])
     c5.extend([
         f"# 2. {title} DCD-Gated 64D\n",
         f"log_64g = os.path.join(LOG_DIR, '{dkey}_dcd_gated_dim64.log')\n",
         "if RUN_64_GATED:\n",
-        f"    run_training_v5_plus(key='{dkey}', yaml_cfg=YAML_CFG, data_root=DATA_ROOT, log_path=log_64g, method='dcd_gated', epochs=500, embedding_dim=64)\n",
+        f"    run_training_v5_plus(key='{dkey}', yaml_cfg=YAML_CFG, data_root=DATA_ROOT, log_path=log_64g, method='dcd_gated', epochs={target_epochs}, embedding_dim=64)\n",
         "\n",
         f"# 3. {title} Baseline 256D\n",
         f"log_256b = os.path.join(LOG_DIR, '{dkey}_stair_baseline_dim256.log')\n",
         "if RUN_256_BASE:\n",
-        f"    run_stair_baseline(key='{dkey}', yaml_cfg=YAML_CFG, data_root=DATA_ROOT, log_path=log_256b, epochs=500, embedding_dim=256)\n",
+        f"    run_stair_baseline(key='{dkey}', yaml_cfg=YAML_CFG, data_root=DATA_ROOT, log_path=log_256b, epochs={target_epochs}, embedding_dim=256)\n",
         "\n",
         f"# 4. {title} DCD-Gated 256D (SOTA)\n",
         f"log_256g = os.path.join(LOG_DIR, '{dkey}_dcd_gated_dim256.log')\n",
         "if RUN_256_GATED:\n",
-        f"    run_training_v5_plus(key='{dkey}', yaml_cfg=YAML_CFG, data_root=DATA_ROOT, log_path=log_256g, method='dcd_gated', epochs=500, embedding_dim=256)\n",
+        f"    run_training_v5_plus(key='{dkey}', yaml_cfg=YAML_CFG, data_root=DATA_ROOT, log_path=log_256g, method='dcd_gated', epochs={target_epochs}, embedding_dim=256)\n",
     ])
     cells.append({
         "cell_type": "code",
