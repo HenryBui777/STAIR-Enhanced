@@ -166,6 +166,7 @@ def build_notebook_for_dataset(dkey, info):
     # ─────────────────────────────────────────────────────────────────────────
     has_cloth_64b = (dkey == "clothing")
     extra_chunk_tag = " | Chunk Size = `2000` (Zero-OOM Engine)" if dkey == "electronics" else ""
+    es_tag = " | Early Stopping = `Bật sau Warmup Ep200 (Patience 30)`" if dkey in ["clothing", "electronics"] else " | Early Stopping = `Tắt (Full 500 Eps SOTA)`"
     c0 = [
         f"# 🚀 THỰC NGHIỆM ĐỐI CHUẨN ĐỘC LẬP: STAIR DCD-GATED TRÊN {title.upper()}\n",
         f"### 🏆 Quy mô: {users} Users | {items} Items | {inter} Interactions | Độ thưa {spar}\n",
@@ -173,7 +174,7 @@ def build_notebook_for_dataset(dkey, info):
         f"> **Tập dữ liệu:** {title} ({canon})\n",
         "> **Phương pháp:** STAIR DCD-Gated (Dual-Consensus Denoising & Gated Residuals)\n",
         "> **Backbone:** Stepwise Forward/Backward Spectral Graph Convolution (STAIR - AAAI 2025)\n",
-        f"> **Cấu hình tối ưu:** Batch Size = `{bs}`{extra_chunk_tag} | Epochs = `500` | Optimizer = `AdamWSEvo` | LR = `1e-3` (Warmup 15 eps -> Cosine Decay)\n",
+        f"> **Cấu hình tối ưu:** Batch Size = `{bs}`{extra_chunk_tag}{es_tag} | Epochs = `500` | Optimizer = `AdamWSEvo` | LR = `1e-3` (Warmup 15 eps -> Cosine Decay)\n",
         "\n",
         "### 📋 BẢNG 1: CÁC CẤU HÌNH THỰC NGHIỆM ĐƯỢC CHẠY TRONG NOTEBOOK NÀY\n",
         "| STT | Tên cấu hình | Không gian | Phương pháp | Max Epochs | Batch Size | Mô tả khoa học |\n",

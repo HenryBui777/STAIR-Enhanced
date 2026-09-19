@@ -304,8 +304,60 @@ class CoachForSTAIR(freerec.launcher.Coach):
                 mode='train', pool=['LOSS']
             )
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.best_ndcg20 = -1.0
+        self.best_epoch = 0
+        self.patience_counter = 0
+        self.early_stop_warmup = getattr(self.cfg, 'early_stop_warmup', 200)
+        self.patience = getattr(self.cfg, 'patience', 30)
+
     def evaluate(self, epoch: int = 0, mode: str = 'valid'):
         super().evaluate(epoch, mode=mode)
+        if mode == 'valid':
+            try:
+                ds_lower = getattr(self.cfg, 'dataset', '').lower()
+                enable_es = any(k in ds_lower for k in ['clothing', 'electronic'])
+
+                meters = getattr(self, 'meters', None)
+                if meters is None and hasattr(self, 'monitor') and hasattr(self.monitor, 'meters'):
+                    meters = self.monitor.meters
+
+                def get_val(name):
+                    if meters is not None:
+                        for k, v in meters.items():
+                            if name.lower() in str(k).lower():
+                                return getattr(v, 'avg', getattr(v, 'val', None))
+                    return None
+
+                n20 = get_val('NDCG@20')
+                if n20 is not None:
+                    if n20 > self.best_ndcg20:
+                        self.best_ndcg20 = n20
+                        self.best_epoch = epoch
+                        self.patience_counter = 0
+                    else:
+                        if epoch + 1 >= self.early_stop_warmup:
+                            self.patience_counter += 1
+                        else:
+                            self.patience_counter = 0
+
+                    if enable_es:
+                        if epoch + 1 >= self.early_stop_warmup:
+                            if self.patience_counter > 0:
+                                print(
+                                    f"  ⏳ [Early Stopping] Patience: {self.patience_counter}/{self.patience} "
+                                    f"(Best NDCG@20: {self.best_ndcg20:.4f} @Epoch {self.best_epoch})"
+                                )
+                            if self.patience_counter >= self.patience:
+                                print(
+                                    f"\n🛑 [EARLY STOPPING TRIGGERED @Epoch {epoch + 1}] "
+                                    f"Kích hoạt dừng sớm sau {self.patience} epochs không cải thiện NDCG@20 "
+                                    f"(tính từ sau Epoch {self.early_stop_warmup}, Best Epoch: {self.best_epoch}, Best NDCG@20: {self.best_ndcg20:.4f}).\n"
+                                )
+                                self.cfg.epochs = epoch + 1
+            except Exception:
+                pass
 
 
 def main():
