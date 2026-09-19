@@ -317,7 +317,7 @@ class CoachForSTAIR(freerec.launcher.Coach):
         if mode == 'valid':
             try:
                 ds_lower = getattr(self.cfg, 'dataset', '').lower()
-                enable_es = any(k in ds_lower for k in ['clothing', 'electronic'])
+                enable_es = 'clothing' in ds_lower
 
                 meters = getattr(self, 'meters', None)
                 if meters is None and hasattr(self, 'monitor') and hasattr(self.monitor, 'meters'):
