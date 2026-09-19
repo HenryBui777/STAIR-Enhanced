@@ -164,6 +164,8 @@ cfg.add_argument("--min-lr", type=float, default=1e-6,
                  help="Minimum LR after Cosine decay (default: 1e-6)")
 cfg.add_argument("--patience", type=int, default=30,
                  help="Early stopping patience in epochs (default: 30)")
+cfg.add_argument("--early-stop-warmup", type=int, default=100,
+                 help="Warmup epochs before activating early stopping (default: 100)")
 cfg.add_argument("--target-metric", type=str, default="NDCG@20",
                  help="Target metric for best checkpoint selection and early stopping (default: NDCG@20)")
 

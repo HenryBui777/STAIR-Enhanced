@@ -21,6 +21,7 @@ cfg.add_argument("--mfiles", type=str, default="textual_modality.pkl,visual_moda
 cfg.add_argument("--num-neighbors", type=str, default='5-1', help="for kNN graph")
 cfg.add_argument("--gamma", type=float, default=0.2)
 cfg.add_argument("--patience", type=int, default=30, help="early stopping patience (default: 30)")
+cfg.add_argument("--early-stop-warmup", type=int, default=100, help="early stopping warmup epochs (default: 100)")
 
 cfg.set_defaults(
     description="STAIR",
