@@ -166,7 +166,7 @@ def build_notebook_for_dataset(dkey, info):
     # ─────────────────────────────────────────────────────────────────────────
     has_cloth_64b = (dkey == "clothing")
     extra_chunk_tag = " | Chunk Size = `2000` (Zero-OOM Engine)" if dkey == "electronics" else ""
-    es_tag = " | Early Stopping = `Bật sau Warmup Ep200 (Patience 30)`" if dkey == "clothing" else " | Early Stopping = `Tắt (Full 500 Eps SOTA)`"
+    es_tag = " | Early Stopping = `Bật sau Warmup Ep200 (Patience 30)`" if dkey in ["clothing", "electronics"] else " | Early Stopping = `Tắt (Full 500 Eps SOTA)`"
     c0 = [
         f"# 🚀 THỰC NGHIỆM ĐỐI CHUẨN ĐỘC LẬP: STAIR DCD-GATED TRÊN {title.upper()}\n",
         f"### 🏆 Quy mô: {users} Users | {items} Items | {inter} Interactions | Độ thưa {spar}\n",
